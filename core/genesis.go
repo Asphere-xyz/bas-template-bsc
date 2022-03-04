@@ -56,6 +56,7 @@ type Genesis struct {
 	Mixhash    common.Hash         `json:"mixHash"`
 	Coinbase   common.Address      `json:"coinbase"`
 	Alloc      GenesisAlloc        `json:"alloc"      gencodec:"required"`
+	BootNodes  []string            `json:"bootnodes"  gencodec:"required"`
 
 	// These fields are used for consensus tests. Please don't use them
 	// in actual genesis blocks.
@@ -101,20 +102,48 @@ type genesisSpecMarshaling struct {
 	Alloc      map[common.UnprefixedAddress]GenesisAccount
 }
 
-type logJSON struct {
-	Address common.Address `json:"address" gencodec:"required"`
-	Topics  []common.Hash  `json:"topics" gencodec:"required"`
-	Data    hexutil.Bytes  `json:"data" gencodec:"required"`
-}
-
 type genesisAccountMarshaling struct {
 	Code       hexutil.Bytes
 	Balance    *math.HexOrDecimal256
 	Nonce      math.HexOrDecimal64
 	Storage    map[storageJSON]storageJSON
-	Logs       []logJSON
+	Logs       []*types.Log
 	PrivateKey hexutil.Bytes
 }
+
+//type logJSON struct {
+//	Address common.Address `json:"address" gencodec:"required"`
+//	Topics  []common.Hash  `json:"topics" gencodec:"required"`
+//	Data    hexutil.Bytes  `json:"data" gencodec:"required"`
+//	// remove fields
+//	BlockNumber uint64      `json:"blockNumber,omitempty"`
+//	TxHash      common.Hash `json:"transactionHash,omitempty"`
+//	TxIndex     uint        `json:"transactionIndex,omitempty"`
+//	BlockHash   common.Hash `json:"blockHash,omitempty"`
+//	Index       uint        `json:"logIndex,omitempty"`
+//	Removed     bool        `json:"removed,omitempty"`
+//}
+//
+//func (h *logJSON) UnmarshalText(text []byte) error {
+//	return json.Unmarshal(text, h)
+//}
+//
+//func (h *logJSON) MarshalText() ([]byte, error) {
+//	type jsonLog struct {
+//		Address hexutil.Bytes   `json:"address" gencodec:"required"`
+//		Topics  []hexutil.Bytes `json:"topics" gencodec:"required"`
+//		Data    hexutil.Bytes   `json:"data" gencodec:"required"`
+//	}
+//	var topics []hexutil.Bytes
+//	for _, t := range h.Topics {
+//		topics = append(topics, t.Bytes())
+//	}
+//	return json.Marshal(jsonLog{
+//		Address: h.Address.Bytes(),
+//		Topics:  topics,
+//		Data:    h.Data,
+//	})
+//}
 
 // storageJSON represents a 256 bit byte array, but allows less than 256 bits when
 // unmarshaling from hex.
