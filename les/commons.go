@@ -141,10 +141,6 @@ func (c *lesCommons) localCheckpoint(index uint64) params.TrustedCheckpoint {
 func (c *lesCommons) setupOracle(node *node.Node, genesis common.Hash, ethconfig *ethconfig.Config) *checkpointoracle.CheckpointOracle {
 	config := ethconfig.CheckpointOracle
 	if config == nil {
-		// Try loading default config.
-		config = params.CheckpointOracles[genesis]
-	}
-	if config == nil {
 		log.Info("Checkpoint oracle is not enabled")
 		return nil
 	}

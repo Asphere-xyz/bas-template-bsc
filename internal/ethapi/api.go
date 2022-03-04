@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/tyler-smith/go-bip39"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -37,7 +38,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
-	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -49,7 +49,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/tyler-smith/go-bip39"
 )
 
 const UnHealthyTimeout = 5 * time.Second
@@ -2385,7 +2384,7 @@ func (api *PublicDebugAPI) SeedHash(ctx context.Context, number uint64) (string,
 	if block == nil {
 		return "", fmt.Errorf("block #%d not found", number)
 	}
-	return fmt.Sprintf("0x%x", ethash.SeedHash(number)), nil
+	return "", fmt.Errorf("not supported")
 }
 
 // PrivateDebugAPI is the collection of Ethereum APIs exposed over the private

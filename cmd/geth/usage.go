@@ -22,10 +22,11 @@ import (
 	"io"
 	"sort"
 
+	"gopkg.in/urfave/cli.v1"
+
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/internal/debug"
 	"github.com/ethereum/go-ethereum/internal/flags"
-	"gopkg.in/urfave/cli.v1"
 )
 
 // AppHelpFlagGroups is the application flags, grouped by functionality.
@@ -81,19 +82,6 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		Flags: []cli.Flag{
 			utils.DeveloperFlag,
 			utils.DeveloperPeriodFlag,
-		},
-	},
-	{
-		Name: "ETHASH",
-		Flags: []cli.Flag{
-			utils.EthashCacheDirFlag,
-			utils.EthashCachesInMemoryFlag,
-			utils.EthashCachesOnDiskFlag,
-			utils.EthashCachesLockMmapFlag,
-			utils.EthashDatasetDirFlag,
-			utils.EthashDatasetsInMemoryFlag,
-			utils.EthashDatasetsOnDiskFlag,
-			utils.EthashDatasetsLockMmapFlag,
 		},
 	},
 	{
