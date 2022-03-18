@@ -28,6 +28,6 @@ func main() {
 	println("----------EXTRA DATA SHOULD BE---------------")
 	println(hexutil.Encode(block.Header().Extra[:len(block.Header().Extra)-65])[2:])
 	println("----------SIGNING DATA-----------------------")
-	signingData := parlia.ParliaRLP(block.Header(), big.NewInt(65))
+	signingData := parlia.ParliaRLP(block.Header(), big.NewInt(56))
 	println(hexutil.Encode(signingData)[2:])
 }
