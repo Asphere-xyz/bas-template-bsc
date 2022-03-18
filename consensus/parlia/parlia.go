@@ -1114,8 +1114,11 @@ func (p *Parlia) initContract(state *state.StateDB, header *types.Header, chain 
 		common.HexToAddress(ValidatorContract),
 		common.HexToAddress(SlashContract),
 		common.HexToAddress(SystemRewardContract),
+		common.HexToAddress(StakingPoolContract),
 		common.HexToAddress(GovernanceContract),
 		common.HexToAddress(ChainConfigContract),
+		common.HexToAddress(RuntimeUpgradeContract),
+		common.HexToAddress(DeployerProxyContract),
 	}
 	for _, c := range contracts {
 		msg := p.getSystemMessage(header.Coinbase, c, data, common.Big0)
@@ -1343,7 +1346,7 @@ func applyMessage(
 		msg.Value(),
 	)
 	if err != nil {
-		log.Error("apply message failed", "msg", string(ret), "err", err)
+		log.Error("apply message failed", "msg", string(ret[64+4:]), "err", err)
 	}
 	return msg.Gas() - returnGas, err
 }

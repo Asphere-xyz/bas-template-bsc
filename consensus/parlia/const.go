@@ -25,8 +25,11 @@ const (
 
 // BAS contacts
 const (
-	GovernanceContract  = "0x0000000000000000000000000000000000007002"
-	ChainConfigContract = "0x0000000000000000000000000000000000007003"
+	StakingPoolContract    = "0x0000000000000000000000000000000000007001"
+	GovernanceContract     = "0x0000000000000000000000000000000000007002"
+	ChainConfigContract    = "0x0000000000000000000000000000000000007003"
+	RuntimeUpgradeContract = "0x0000000000000000000000000000000000007004"
+	DeployerProxyContract  = "0x0000000000000000000000000000000000007005"
 )
 
 var systemContracts = map[common.Address]bool{
@@ -41,8 +44,11 @@ var systemContracts = map[common.Address]bool{
 	common.HexToAddress(RelayerIncentivizeContract): false,
 	common.HexToAddress(CrossChainContract):         false,
 	// BAS smart contracts
-	common.HexToAddress(GovernanceContract):  true,
-	common.HexToAddress(ChainConfigContract): true,
+	common.HexToAddress(StakingPoolContract):    true,
+	common.HexToAddress(GovernanceContract):     true,
+	common.HexToAddress(ChainConfigContract):    true,
+	common.HexToAddress(RuntimeUpgradeContract): true,
+	common.HexToAddress(DeployerProxyContract):  true,
 }
 
 var (

@@ -27,7 +27,6 @@ func (g Genesis) MarshalJSON() ([]byte, error) {
 		Mixhash    common.Hash                                 `json:"mixHash"`
 		Coinbase   common.Address                              `json:"coinbase"`
 		Alloc      map[common.UnprefixedAddress]GenesisAccount `json:"alloc"      gencodec:"required"`
-		BootNodes  []string                                    `json:"bootnodes"  gencodec:"required"`
 		Number     math.HexOrDecimal64                         `json:"number"`
 		GasUsed    math.HexOrDecimal64                         `json:"gasUsed"`
 		ParentHash common.Hash                                 `json:"parentHash"`
@@ -47,7 +46,6 @@ func (g Genesis) MarshalJSON() ([]byte, error) {
 			enc.Alloc[common.UnprefixedAddress(k)] = v
 		}
 	}
-	enc.BootNodes = g.BootNodes
 	enc.Number = math.HexOrDecimal64(g.Number)
 	enc.GasUsed = math.HexOrDecimal64(g.GasUsed)
 	enc.ParentHash = g.ParentHash
@@ -66,7 +64,6 @@ func (g *Genesis) UnmarshalJSON(input []byte) error {
 		Mixhash    *common.Hash                                `json:"mixHash"`
 		Coinbase   *common.Address                             `json:"coinbase"`
 		Alloc      map[common.UnprefixedAddress]GenesisAccount `json:"alloc"      gencodec:"required"`
-		BootNodes  []string                                    `json:"bootnodes"  gencodec:"required"`
 		Number     *math.HexOrDecimal64                        `json:"number"`
 		GasUsed    *math.HexOrDecimal64                        `json:"gasUsed"`
 		ParentHash *common.Hash                                `json:"parentHash"`
@@ -108,10 +105,6 @@ func (g *Genesis) UnmarshalJSON(input []byte) error {
 	for k, v := range dec.Alloc {
 		g.Alloc[common.Address(k)] = v
 	}
-	if dec.BootNodes == nil {
-		return errors.New("missing required field 'bootnodes' for Genesis")
-	}
-	g.BootNodes = dec.BootNodes
 	if dec.Number != nil {
 		g.Number = uint64(*dec.Number)
 	}

@@ -146,7 +146,7 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 	cfg.Eth.Genesis = genesis
 
 	// Apply flags.
-	utils.SetNodeConfig(ctx, genesis, &cfg.Node)
+	utils.SetNodeConfig(ctx, &cfg.Node)
 	stack, err := node.New(&cfg.Node)
 	if err != nil {
 		utils.Fatalf("Failed to create the protocol stack: %v", err)

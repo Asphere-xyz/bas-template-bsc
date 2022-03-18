@@ -836,9 +836,8 @@ func setNodeUserIdent(ctx *cli.Context, cfg *node.Config) {
 
 // setBootstrapNodes creates a list of bootstrap nodes from the command line
 // flags, reverting to pre-configured ones if none have been specified.
-func setBootstrapNodes(ctx *cli.Context, genesis *core.Genesis, cfg *p2p.Config) {
+func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
 	urls := SplitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
-	urls = append(urls, genesis.BootNodes...)
 
 	cfg.BootstrapNodes = make([]*enode.Node, 0, len(urls))
 	for _, url := range urls {
@@ -855,9 +854,8 @@ func setBootstrapNodes(ctx *cli.Context, genesis *core.Genesis, cfg *p2p.Config)
 
 // setBootstrapNodesV5 creates a list of bootstrap nodes from the command line
 // flags, reverting to pre-configured ones if none have been specified.
-func setBootstrapNodesV5(ctx *cli.Context, genesis *core.Genesis, cfg *p2p.Config) {
+func setBootstrapNodesV5(ctx *cli.Context, cfg *p2p.Config) {
 	urls := SplitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
-	urls = append(urls, genesis.BootNodes...)
 
 	cfg.BootstrapNodesV5 = make([]*enode.Node, 0, len(urls))
 	for _, url := range urls {
@@ -1124,12 +1122,12 @@ func MakePasswordList(ctx *cli.Context) []string {
 	return lines
 }
 
-func SetP2PConfig(ctx *cli.Context, genesis *core.Genesis, cfg *p2p.Config) {
+func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setNodeKey(ctx, cfg)
 	setNAT(ctx, cfg)
 	setListenAddress(ctx, cfg)
-	setBootstrapNodes(ctx, genesis, cfg)
-	setBootstrapNodesV5(ctx, genesis, cfg)
+	setBootstrapNodes(ctx, cfg)
+	setBootstrapNodesV5(ctx, cfg)
 
 	lightClient := ctx.GlobalString(SyncModeFlag.Name) == "light"
 	lightServer := (ctx.GlobalInt(LightServeFlag.Name) != 0)
@@ -1198,8 +1196,8 @@ func SetP2PConfig(ctx *cli.Context, genesis *core.Genesis, cfg *p2p.Config) {
 }
 
 // SetNodeConfig applies node-related command line flags to the config.
-func SetNodeConfig(ctx *cli.Context, genesis *core.Genesis, cfg *node.Config) {
-	SetP2PConfig(ctx, genesis, &cfg.P2P)
+func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
+	SetP2PConfig(ctx, &cfg.P2P)
 	setIPC(ctx, cfg)
 	setHTTP(ctx, cfg)
 	setGraphQL(ctx, cfg)
