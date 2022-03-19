@@ -31,7 +31,7 @@ var (
 
 func matchesMethod(input []byte, method abi.Method) []interface{} {
 	// check does call matches
-	if len(input) < 4 || bytes.Equal(input[:4], method.ID) {
+	if len(input) < 4 || !bytes.Equal(input[:4], method.ID) {
 		return nil
 	}
 	values, err := method.Inputs.UnpackValues(input[4:])
