@@ -2,7 +2,6 @@ package systemcontract
 
 import (
 	"bytes"
-	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -45,19 +44,22 @@ func matchesMethod(input []byte, method abi.Method) []interface{} {
 var runtimeUpgradeContract = common.HexToAddress("0x0000000000000000000000000000000000007004")
 
 func (sc *evmHookRuntimeUpgrade) Run(input []byte) ([]byte, error) {
+	if !sc.context.ChainRules.HasRuntimeUpgrade {
+		return nil, errNotSupported
+	}
 	// check the caller
 	if sc.context.CallerAddress != runtimeUpgradeContract {
-		return nil, fmt.Errorf("invalid caller")
+		return nil, errInvalidCaller
 	}
 	// if matches upgrade to method
 	if values := matchesMethod(input, upgradeToMethod); values != nil {
 		contractAddress, ok := values[0].(common.Address)
 		if !ok {
-			return nil, fmt.Errorf("failed to unpack")
+			return nil, errFailedToUnpack
 		}
 		byteCode, ok := values[1].([]byte)
 		if !ok {
-			return nil, fmt.Errorf("failed to unpack")
+			return nil, errFailedToUnpack
 		}
 		sc.context.StateDb.SetCode(contractAddress, byteCode)
 	}
