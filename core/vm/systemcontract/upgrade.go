@@ -62,8 +62,9 @@ func (sc *evmHookRuntimeUpgrade) Run(input []byte) ([]byte, error) {
 			return nil, errFailedToUnpack
 		}
 		sc.context.StateDb.SetCode(contractAddress, byteCode)
+		return nil, nil
 	}
-	return nil, nil
+	return nil, errMethodNotFound
 }
 
 func (sc *evmHookRuntimeUpgrade) RequiredGas(input []byte) uint64 {

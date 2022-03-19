@@ -78,7 +78,7 @@ func TestEvmHookRuntimeUpgrade_BadParams(t *testing.T) {
 			StateDb:       statedb,
 			ChainConfig:   nil,
 			ChainRules: params.Rules{
-				HasRuntimeUpgrade: false,
+				HasRuntimeUpgrade: true,
 			},
 		},
 	}
