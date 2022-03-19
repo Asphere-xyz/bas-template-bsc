@@ -266,55 +266,6 @@ func (s *StateDB) SetSnapData(snapDestructs map[common.Address]struct{}, snapAcc
 	s.snapDestructs, s.snapAccounts, s.snapStorage = snapDestructs, snapAccounts, snapStorage
 }
 
-//func mustNewType(name string) abi.Type {
-//	typ, err := abi.NewType(name, name, nil)
-//	if err != nil {
-//		panic(err)
-//	}
-//	return typ
-//}
-//
-//var (
-//	addressType = mustNewType("address")
-//	bytesType   = mustNewType("bytes")
-//)
-//
-//func (s *StateDB) doRuntimeUpgrade(l *types.Log) {
-//	if l.Address != common.HexToAddress("0x0000000000000000000000000000000000007004") {
-//		return
-//	} else if len(l.Topics) == 0 || l.Topics[0] != common.HexToHash("0x768182a2f2b0b2135edc1e07136ac9ff0dccd9f6182ddd147ac1a49ac9c8c5af") {
-//		return
-//	}
-//	args := abi.Arguments{
-//		abi.Argument{Type: addressType},
-//		abi.Argument{Type: bytesType},
-//		abi.Argument{Type: bytesType},
-//	}
-//	result, err := args.Unpack(l.Data)
-//	if err != nil {
-//		log.Error("Failed to unpack ABI for runtime upgrade: %+v", err)
-//		return
-//	} else if len(result) != 2 {
-//		log.Error("Not enough log fields for unpack: %+v", err)
-//		return
-//	}
-//	contractAddress, ok := result[0].(common.Address)
-//	if !ok {
-//		log.Error("Can't decode contract address for runtime upgrade")
-//		return
-//	}
-//	if !parlia.IsSystemContract(contractAddress) {
-//		log.Error("Upgrade of non-system smart contract is not allowed")
-//		return
-//	}
-//	byteCode, ok := result[1].([]byte)
-//	if !ok {
-//		log.Error("Can't decode byte code for runtime upgrade")
-//		return
-//	}
-//	s.SetCode(contractAddress, byteCode)
-//}
-
 func (s *StateDB) AddLog(l *types.Log) {
 	//s.doRuntimeUpgrade(l)
 	s.journal.append(addLogChange{txhash: s.thash})

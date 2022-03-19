@@ -57,6 +57,7 @@ var (
 	SystemRewardAddress      = common.HexToAddress(SystemRewardContract)
 	GovernanceAddress        = common.HexToAddress(GovernanceContract)
 	ChainConfigAddress       = common.HexToAddress(ChainConfigContract)
+	RuntimeUpgradeAddress    = common.HexToAddress(RuntimeUpgradeContract)
 )
 
 func IsSystemContract(address common.Address) bool {
