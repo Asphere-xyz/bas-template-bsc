@@ -1,0 +1,17 @@
+version: 2.1
+
+jobs:
+ build:
+   machine: true
+   steps:
+     - checkout
+     - run: echo "$DOCKER_PASS" | docker login --username $DOCKER_USER --password-stdin
+     - run: docker build -t ankrnetwork/bas-template-bsc:$CIRCLE_BRANCH .
+     - run: docker push ankrnetwork/bas-template-bsc:$CIRCLE_BRANCH
+
+workflows:
+  build-deploy:
+    jobs:
+      - build:
+          context:
+            - docker_deploy
