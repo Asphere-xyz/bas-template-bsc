@@ -69,6 +69,7 @@ var (
 	bootFlag    = flag.String("bootnodes", "", "Comma separated bootnode enode URLs to seed with")
 	netFlag     = flag.Uint64("network", 0, "Network ID to use for the Ethereum protocol")
 	statsFlag   = flag.String("ethstats", "", "Ethstats network monitoring auth string")
+	rpcApiFlag  = flag.String("rpcapi", "", "RPC api")
 
 	netnameFlag = flag.String("faucet.name", "", "Network name to assign to the faucet")
 	payoutFlag  = flag.Int("faucet.amount", 1, "Number of Ethers to pay out per user request")
@@ -202,7 +203,12 @@ func main() {
 		log.Crit("Failed to unlock faucet signer account", "err", err)
 	}
 	// Assemble and start the faucet light service
-	faucet, err := newFaucet(genesis, *ethPortFlag, enodes, *netFlag, *statsFlag, ks, website.Bytes(), bep2eInfos)
+	var faucet *faucet
+	if *rpcApiFlag != "" {
+		faucet, err = newHttpFaucet(genesis, *rpcApiFlag, ks, website.Bytes(), bep2eInfos)
+	} else {
+		faucet, err = newFaucet(genesis, *ethPortFlag, enodes, *netFlag, *statsFlag, ks, website.Bytes(), bep2eInfos)
+	}
 	if err != nil {
 		log.Crit("Failed to start faucet", "err", err)
 	}
@@ -332,8 +338,33 @@ func newFaucet(genesis *core.Genesis, port int, enodes []*enode.Node, network ui
 	}, nil
 }
 
+func newHttpFaucet(genesis *core.Genesis, rpcApi string, ks *keystore.KeyStore, index []byte, bep2eInfos map[string]bep2eInfo) (*faucet, error) {
+	bep2eAbi, err := abi.JSON(strings.NewReader(bep2eAbiJson))
+	if err != nil {
+		return nil, err
+	}
+	client, err := ethclient.Dial(rpcApi)
+	if err != nil {
+		return nil, err
+	}
+	return &faucet{
+		config:     genesis.Config,
+		client:     client,
+		index:      index,
+		keystore:   ks,
+		account:    ks.Accounts()[0],
+		timeouts:   make(map[string]time.Time),
+		update:     make(chan struct{}, 1),
+		bep2eInfos: bep2eInfos,
+		bep2eAbi:   bep2eAbi,
+	}, nil
+}
+
 // close terminates the Ethereum connection and tears down the faucet.
 func (f *faucet) close() error {
+	if f.stack == nil {
+		return nil
+	}
 	return f.stack.Close()
 }
 
@@ -412,10 +443,14 @@ func (f *faucet) apiHandler(w http.ResponseWriter, r *http.Request) {
 	f.lock.RLock()
 	reqs := f.reqs
 	f.lock.RUnlock()
+	peerCount := -1
+	if f.stack != nil {
+		peerCount = f.stack.Server().PeerCount()
+	}
 	if err = send(wsconn, map[string]interface{}{
 		"funds":    new(big.Int).Div(balance, ether),
 		"funded":   nonce,
-		"peers":    f.stack.Server().PeerCount(),
+		"peers":    peerCount,
 		"requests": reqs,
 	}, 3*time.Second); err != nil {
 		log.Warn("Failed to send initial stats to client", "err", err)
@@ -677,7 +712,10 @@ func (f *faucet) loop() {
 			log.Info("Updated faucet state", "number", head.Number, "hash", head.Hash(), "age", common.PrettyAge(timestamp), "balance", f.balance, "nonce", f.nonce, "price", f.price)
 
 			balance := new(big.Int).Div(f.balance, ether)
-			peers := f.stack.Server().PeerCount()
+			peers := -1
+			if f.stack != nil {
+				peers = f.stack.Server().PeerCount()
+			}
 
 			for _, conn := range f.conns {
 				if err := send(conn, map[string]interface{}{
