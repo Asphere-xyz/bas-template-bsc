@@ -30,7 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/params"
 )
 
 // VMTest checks EVM execution without block or transaction context.
@@ -153,7 +152,7 @@ func (t *VMTest) newEVM(statedb *state.StateDB, vmconfig vm.Config) *vm.EVM {
 		Difficulty:  t.json.Env.Difficulty,
 	}
 	vmconfig.NoRecursion = true
-	return vm.NewEVM(context, txContext, statedb, params.MainnetChainConfig, vmconfig)
+	return vm.NewEVM(context, txContext, statedb, nil, vmconfig)
 }
 
 func vmTestBlockHash(n uint64) common.Hash {
