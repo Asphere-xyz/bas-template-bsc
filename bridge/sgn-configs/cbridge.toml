@@ -1,0 +1,43 @@
+[bridge.default_check_interval]
+# cbridge events
+send = 2
+relay = 2
+liquidity_added = 2
+withdraw_done = 3
+signers_updated = 2
+# pegbridge events
+deposited = 2
+mint = 3
+burn = 2
+withdrawn = 3
+# staking events
+delegation_update = 20
+
+[[multichain]]
+chainID = 56
+name = "BSC"
+# Private gateway endpoint recommended
+gateway = "https://bsc-dataseed.binance.org"
+blkinterval = 15
+blkdelay = 20
+forwardblkdelay = 50
+maxblkdelta = 5000
+cbridge = "<FILL-IN>"
+otvault = "<FILL-IN>"
+ptbridge = "<FILL-IN>"
+addgasgwei = 1
+addgasestimateratio = 0.3
+
+[[multichain]]
+# Change to your chainID
+chainID = 560
+name = "Your BAS"
+gateway = "<FILL-IN>"
+blkinterval = 10
+blkdelay = 3
+forwardblkdelay = 30
+maxblkdelta = 5000
+cbridge = "<FILL-IN>"
+otvault = "<FILL-IN>"
+ptbridge = "<FILL-IN>"
+addgasestimateratio = 0.3

@@ -1,17 +1,18 @@
 # cBridge between BAS and BSC
-To bridge assets other than BAS native gas token, operators should setup and run [cBridge](https://cbridge.celer.network/) solution between BAS and BSC.
-The solution includes onchain contracts on BAS and BSC, and a dedicated [State Guardian Network](https://cbridge-docs.celer.network/introduction/state-guardian-network) to ensure security. Note the validators for SGN can be different from BAS's validator set.
 
-## Initial onchain setup
-1. On BAS, deploy BEP20 token contract or use an existing one (eg. wrap of native gas token) as cBridge staking token, referred to as *cBridgeStakeToken*
-2. On BAS, deploy Celer SGN core contracts
-3. On both BAS and BSC, deploy separately cBridge contracts
+To bridge assets other than the BAS native gas token, operators can choose to bridge BEP-20 tokens via
+[cBridge](https://cbridge.celer.network/). It is also possible to setup and run a standalone cBridge solution between BAS and BSC if the
+operators choose to do so. Note that this is a technically advanced topic that requires good understanding of both Ethereum based and Cosmos
+SDK based blockchains. The guide is still a work in progress and might contain errors or steps that are unclear.
 
-See details at [1_onchain.md](./1_onchain.md)
+The standalone solution includes on-chain contracts on BAS and BSC, and a dedicated [State Guardian Network](https://cbridge-docs.celer.network/introduction/state-guardian-network) as the relay chain. Note the validators for SGN can be different from those of the BAS.
 
-## Start dedicated SGN
+## Steps
 
+Once you have followed the steps below and got the SGN chain up and running, **contact the Celer team** to get a dedicated gateway server and
+frontend setup for your BAS.
 
-## cBridge operation
-### Add new token
-### Add new SGN validator
+[Deploy Contracts](01_deploy_contracts.md)
+[Init SGN](02_init_sgn.md)
+[Run Validator](03_run_validator.md)
+[Add Chains and Tokens](04_add_chain_tokens.md)
