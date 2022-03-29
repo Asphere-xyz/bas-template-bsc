@@ -156,7 +156,7 @@ These steps need to be repeated for your BAS and BSC respectively.
 
 ### Add pegbridge token
 
-In this example we assume you want to bridge an original token on BAS to a pegged token on BSC.
+In this example, we assume you want to bridge an original token on BAS to a pegged token on BSC.
 
 1. Deploy pegged token from `sgn-v2-contracts`:
 
@@ -168,11 +168,11 @@ In this example we assume you want to bridge an original token on BAS to a pegge
     MINT_SWAP_CANONICAL_TOKEN_NAME="Your Pegged Token Name"
     MINT_SWAP_CANONICAL_TOKEN_SYMBOL="Your Pegged Token Symbol"
     MINT_SWAP_CANONICAL_TOKEN_DECIMALS=Your Pegged Token Decimals
-	```
+	  ```
 
     Then deploy the token:
 
-	```sh
+	  ```sh
     hardhat deploy --tags MintSwapCanonicalToken --network bsc
     ```
 
@@ -180,30 +180,30 @@ In this example we assume you want to bridge an original token on BAS to a pegge
 
     1. Prepare proposal JSON:
 
-    ```json
-    {
-      "title": "cBridge config change",
-      "description": "Add FOO on BAS",
-      "cbr_config": {
-        "lp_fee_perc": 100,
-        "max_gain_perc": 1200,
-        "assets": [
-          {
-            "addr": "<FILL-IN>",
-            "chain_id": 560,
-            "decimal": 18,
-            "max_fee_amount": "<FILL-IN>",
-            "max_out_amt": "<FILL-IN>",
-            "symbol": "FOO",
-            "xfer_disabled": false
-          }
-        ]
-      },
-      "deposit": "0"
-    }
-    ```
+        ```json
+        {
+          "title": "cBridge config change",
+          "description": "Add FOO on BAS",
+          "cbr_config": {
+            "lp_fee_perc": 100,
+            "max_gain_perc": 1200,
+            "assets": [
+              {
+                "addr": "<FILL-IN>",
+                "chain_id": 560,
+                "decimal": 18,
+                "max_fee_amount": "<FILL-IN>",
+                "max_out_amt": "<FILL-IN>",
+                "symbol": "FOO",
+                "xfer_disabled": false
+              }
+            ]
+          },
+          "deposit": "0"
+        }
+        ```
 
-	2. Submit proposal
+    2. Submit proposal:
 
         ```sh
         sgnd tx gov submit-proposal cbridge-change <path-to-json-file>
@@ -216,6 +216,7 @@ In this example we assume you want to bridge an original token on BAS to a pegge
         ```sh
         sgnd query cbridge config
         sgnd query cbridge chaintokens
+        ```
 
 3. Add the original-pegged token pair to pegbridge module via a governance proposal:
 
@@ -251,9 +252,7 @@ In this example we assume you want to bridge an original token on BAS to a pegge
         }
         ```
 
-2. Submit proposal
-
-    1. Run submit command:
+    2. Submit proposal:
 
         ```sh
         sgnd tx gov submit-proposal pegbridge-change <path-to-json-file>
@@ -261,7 +260,7 @@ In this example we assume you want to bridge an original token on BAS to a pegge
 
         Then vote yes on the proposal.
 
-    2. After the voting period has passed, verify the new pegbridge config:
+    3. After the voting period has passed, verify the new pegbridge config:
 
         ```sh
         sgnd query pegbridge config
