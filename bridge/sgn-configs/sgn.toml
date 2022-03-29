@@ -1,0 +1,49 @@
+help = false
+home = "/home/ubuntu"
+log_format = "plain"
+log_level = "info"
+trace = false
+
+[eth]
+block_delay = 8
+chain_id = 560
+gateway = ""
+poll_interval = 15
+signer_keystore = "/home/ubuntu/.sgnd/eth-ks/signer.json"
+signer_passphrase = ""
+validator_address = ""
+
+[eth.contract_address]
+celr = ""
+staking = ""
+sgn = ""
+staking_reward = ""
+farming_rewards = ""
+govern = ""
+viewer = ""
+
+[eth.check_interval]
+validator_notice = 3
+validator_status_update = 3
+delegation_update = 2
+
+[log]
+color = false
+level = "debug"
+
+[sgnd]
+base_gas_price = 0
+chain_id = "sgn-bas-1"
+gas_adjustment = 3
+keyring_backend = "file"
+node_uri = "tcp://localhost:26657"
+passphrase = ""
+transactors = []
+validator_account = ""
+price_update_url = "https://cbridge-stat.s3.us-west-2.amazonaws.com/prod2/cbridge-price.json"
+
+[sgnd.check_interval]
+verifier = 10
+cbridge = 10
+slash = 60
+cbr_price = 300
