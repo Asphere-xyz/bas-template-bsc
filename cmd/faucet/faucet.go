@@ -178,6 +178,9 @@ func main() {
 	// Convert the bootnodes to internal enode representations
 	var enodes []*enode.Node
 	for _, boot := range strings.Split(*bootFlag, ",") {
+		if boot == "" {
+			continue
+		}
 		if url, err := enode.Parse(enode.ValidSchemes, boot); err == nil {
 			enodes = append(enodes, url)
 		} else {
