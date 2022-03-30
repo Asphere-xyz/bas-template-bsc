@@ -12,7 +12,7 @@ The standalone solution includes on-chain contracts on BAS and BSC, and a dedica
 Once you have followed the steps below and got the SGN chain up and running, **contact the Celer team** to get a dedicated gateway server and
 frontend setup for your BAS.
 
-[Deploy Contracts](01_deploy_contracts.md)
-[Init SGN](02_init_sgn.md)
-[Run Validator](03_run_validator.md)
-[Add Chains and Tokens](04_add_chain_tokens.md)
+- [Deploy Contracts](01_deploy_contracts.md)
+- [Init SGN](02_init_sgn.md)
+- [Run Validator](03_run_validator.md)
+- [Add Chains and Tokens](04_add_chain_tokens.md)
