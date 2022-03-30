@@ -600,10 +600,10 @@ func (p *Parlia) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 	}
 
 	// Set the correct difficulty
-	header.Difficulty = CalcDifficulty(snap, p.val)
-	if header.Difficulty.Cmp(diffInTurn) != 0 && header.Number.Uint64() == 1 {
-		return fmt.Errorf("not your turn for block producing")
-	}
+	//header.Difficulty = CalcDifficulty(snap, p.val)
+	//if header.Difficulty.Cmp(diffInTurn) != 0 && header.Number.Uint64() == 1 {
+	//	return fmt.Errorf("not your turn for block producing")
+	//}
 
 	// Ensure the extra data has all it's components
 	if len(header.Extra) < extraVanity-nextForkHashSize {
