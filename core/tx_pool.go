@@ -158,6 +158,8 @@ type TxPoolConfig struct {
 
 	Lifetime       time.Duration // Maximum amount of time non-executable transaction are queued
 	ReannounceTime time.Duration // Duration for announcing local pending transactions again
+
+	GasFreeContracts map[common.Address]bool
 }
 
 // DefaultTxPoolConfig contains the default configurations for the transaction
@@ -592,7 +594,8 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrInvalidSender
 	}
 	// Drop non-local transactions under our own minimal accepted gas price
-	if !local && tx.GasPriceIntCmp(pool.gasPrice) < 0 {
+	isGasFree := pool.config.GasFreeContracts != nil && pool.config.GasFreeContracts[*tx.To()]
+	if !local && tx.GasPriceIntCmp(pool.gasPrice) < 0 && !isGasFree {
 		return ErrUnderpriced
 	}
 	// Ensure the transaction adheres to nonce ordering

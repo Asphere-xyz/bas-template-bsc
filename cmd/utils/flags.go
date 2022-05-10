@@ -354,6 +354,10 @@ var (
 		Usage: "Duration for announcing local pending transactions again (default = 10 years, minimum = 1 minute)",
 		Value: ethconfig.Defaults.TxPool.ReannounceTime,
 	}
+	TxPoolGasFreeContracts = cli.DurationFlag{
+		Name:  "txpool.gasfreecontracts",
+		Usage: "Comma delimited list of the gas free smart contracts",
+	}
 	// Performance tuning settings
 	CacheFlag = cli.IntFlag{
 		Name:  "cache",
@@ -1326,6 +1330,16 @@ func setTxPool(ctx *cli.Context, cfg *core.TxPoolConfig) {
 	}
 	if ctx.GlobalIsSet(TxPoolReannounceTimeFlag.Name) {
 		cfg.ReannounceTime = ctx.GlobalDuration(TxPoolReannounceTimeFlag.Name)
+	}
+	if ctx.GlobalIsSet(TxPoolGasFreeContracts.Name) {
+		cfg.GasFreeContracts = make(map[common.Address]bool)
+		for _, rawAddress := range ctx.GlobalStringSlice(TxPoolGasFreeContracts.Name) {
+			address := common.HexToAddress(rawAddress)
+			if address == (common.Address{}) {
+				Fatalf("Unable to parse address for the [%s], failed on address (%s)", TxPoolGasFreeContracts.Name, rawAddress)
+			}
+			cfg.GasFreeContracts[address] = true
+		}
 	}
 }
 
