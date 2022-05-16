@@ -18,6 +18,7 @@ package vm
 
 import (
 	"errors"
+	systemcontract2 "github.com/ethereum/go-ethereum/core/vm/systemcontract"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -49,7 +50,17 @@ type (
 	GetHashFunc func(uint64) common.Hash
 )
 
-func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
+func (evm *EVM) precompile(addr, caller common.Address) (PrecompiledContract, bool) {
+	evmHook := systemcontract2.CreateEvmHook(addr, systemcontract2.EvmHookContext{
+		CallerAddress: caller,
+		StateDb:       evm.StateDB,
+		Evm:           evm,
+		ChainConfig:   evm.chainConfig,
+		ChainRules:    evm.chainRules,
+	})
+	if evmHook != nil {
+		return evmHook, true
+	}
 	var precompiles map[common.Address]PrecompiledContract
 	switch {
 	case evm.chainRules.IsBerlin:
@@ -227,7 +238,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		return nil, gas, ErrInsufficientBalance
 	}
 	snapshot := evm.StateDB.Snapshot()
-	p, isPrecompile := evm.precompile(addr)
+	p, isPrecompile := evm.precompile(addr, caller.Address())
 
 	if !evm.StateDB.Exist(addr) {
 		if !isPrecompile && evm.chainRules.IsEIP158 && value.Sign() == 0 {
@@ -329,7 +340,7 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 	}
 
 	// It is allowed to call precompiles, even via delegatecall
-	if p, isPrecompile := evm.precompile(addr); isPrecompile {
+	if p, isPrecompile := evm.precompile(addr, caller.Address()); isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
 	} else {
 		addrCopy := addr
@@ -373,7 +384,7 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 	}
 
 	// It is allowed to call precompiles, even via delegatecall
-	if p, isPrecompile := evm.precompile(addr); isPrecompile {
+	if p, isPrecompile := evm.precompile(addr, caller.Address()); isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
 	} else {
 		addrCopy := addr
@@ -425,7 +436,7 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 		}(gas)
 	}
 
-	if p, isPrecompile := evm.precompile(addr); isPrecompile {
+	if p, isPrecompile := evm.precompile(addr, caller.Address()); isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
 	} else {
 		// At this point, we use a copy of address. If we don't, the go compiler will
@@ -556,6 +567,12 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 func (evm *EVM) Create(caller ContractRef, code []byte, gas uint64, value *big.Int) (ret []byte, contractAddr common.Address, leftOverGas uint64, err error) {
 	contractAddr = crypto.CreateAddress(caller.Address(), evm.StateDB.GetNonce(caller.Address()))
 	return evm.create(caller, &codeAndHash{code: code}, gas, value, contractAddr, CREATE)
+}
+
+// CreateWithAddress creates a new contract using code as deployment code.
+func (evm *EVM) CreateWithAddress(caller common.Address, code []byte, gas uint64, value *big.Int, contractAddr common.Address) (ret []byte, leftOverGas uint64, err error) {
+	ret, _, leftOverGas, err = evm.create(AccountRef(caller), &codeAndHash{code: code}, gas, value, contractAddr, STOP)
+	return
 }
 
 // Create2 creates a new contract using code as deployment code.

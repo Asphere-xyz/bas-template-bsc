@@ -1,3 +1,6 @@
 [submodule "tests"]
 	path = tests/testdata
 	url = https://github.com/ethereum/tests
+[submodule "genesis"]
+	path = genesis
+	url = https://github.com/Ankr-network/bas-genesis-config.git

@@ -69,6 +69,7 @@ var (
 	bootFlag    = flag.String("bootnodes", "", "Comma separated bootnode enode URLs to seed with")
 	netFlag     = flag.Uint64("network", 0, "Network ID to use for the Ethereum protocol")
 	statsFlag   = flag.String("ethstats", "", "Ethstats network monitoring auth string")
+	rpcApiFlag  = flag.String("rpcapi", "", "RPC api")
 
 	netnameFlag = flag.String("faucet.name", "", "Network name to assign to the faucet")
 	payoutFlag  = flag.Int("faucet.amount", 1, "Number of Ethers to pay out per user request")
@@ -115,7 +116,7 @@ func main() {
 	for i := 0; i < *tiersFlag; i++ {
 		// Calculate the amount for the next tier and format it
 		amount := float64(*payoutFlag) * math.Pow(2.5, float64(i))
-		amounts[i] = fmt.Sprintf("%s BNBs", strconv.FormatFloat(amount, 'f', -1, 64))
+		amounts[i] = fmt.Sprintf("%s Native Tokens", strconv.FormatFloat(amount, 'f', -1, 64))
 		if amount == 1 {
 			amounts[i] = strings.TrimSuffix(amounts[i], "s")
 		}
@@ -177,6 +178,9 @@ func main() {
 	// Convert the bootnodes to internal enode representations
 	var enodes []*enode.Node
 	for _, boot := range strings.Split(*bootFlag, ",") {
+		if boot == "" {
+			continue
+		}
 		if url, err := enode.Parse(enode.ValidSchemes, boot); err == nil {
 			enodes = append(enodes, url)
 		} else {
@@ -202,7 +206,12 @@ func main() {
 		log.Crit("Failed to unlock faucet signer account", "err", err)
 	}
 	// Assemble and start the faucet light service
-	faucet, err := newFaucet(genesis, *ethPortFlag, enodes, *netFlag, *statsFlag, ks, website.Bytes(), bep2eInfos)
+	var faucet *faucet
+	if *rpcApiFlag != "" {
+		faucet, err = newHttpFaucet(genesis, *rpcApiFlag, ks, website.Bytes(), bep2eInfos)
+	} else {
+		faucet, err = newFaucet(genesis, *ethPortFlag, enodes, *netFlag, *statsFlag, ks, website.Bytes(), bep2eInfos)
+	}
 	if err != nil {
 		log.Crit("Failed to start faucet", "err", err)
 	}
@@ -332,8 +341,33 @@ func newFaucet(genesis *core.Genesis, port int, enodes []*enode.Node, network ui
 	}, nil
 }
 
+func newHttpFaucet(genesis *core.Genesis, rpcApi string, ks *keystore.KeyStore, index []byte, bep2eInfos map[string]bep2eInfo) (*faucet, error) {
+	bep2eAbi, err := abi.JSON(strings.NewReader(bep2eAbiJson))
+	if err != nil {
+		return nil, err
+	}
+	client, err := ethclient.Dial(rpcApi)
+	if err != nil {
+		return nil, err
+	}
+	return &faucet{
+		config:     genesis.Config,
+		client:     client,
+		index:      index,
+		keystore:   ks,
+		account:    ks.Accounts()[0],
+		timeouts:   make(map[string]time.Time),
+		update:     make(chan struct{}, 1),
+		bep2eInfos: bep2eInfos,
+		bep2eAbi:   bep2eAbi,
+	}, nil
+}
+
 // close terminates the Ethereum connection and tears down the faucet.
 func (f *faucet) close() error {
+	if f.stack == nil {
+		return nil
+	}
 	return f.stack.Close()
 }
 
@@ -412,10 +446,14 @@ func (f *faucet) apiHandler(w http.ResponseWriter, r *http.Request) {
 	f.lock.RLock()
 	reqs := f.reqs
 	f.lock.RUnlock()
+	peerCount := -1
+	if f.stack != nil {
+		peerCount = f.stack.Server().PeerCount()
+	}
 	if err = send(wsconn, map[string]interface{}{
 		"funds":    new(big.Int).Div(balance, ether),
 		"funded":   nonce,
-		"peers":    f.stack.Server().PeerCount(),
+		"peers":    peerCount,
 		"requests": reqs,
 	}, 3*time.Second); err != nil {
 		log.Warn("Failed to send initial stats to client", "err", err)
@@ -528,7 +566,7 @@ func (f *faucet) apiHandler(w http.ResponseWriter, r *http.Request) {
 		)
 		if timeout = f.timeouts[id]; time.Now().After(timeout) {
 			var tx *types.Transaction
-			if msg.Symbol == "BNB" {
+			if msg.Symbol == "NativeToken" {
 				// User wasn't funded recently, create the funding transaction
 				amount := new(big.Int).Mul(big.NewInt(int64(*payoutFlag)), ether)
 				amount = new(big.Int).Mul(amount, new(big.Int).Exp(big.NewInt(5), big.NewInt(int64(msg.Tier)), nil))
@@ -677,7 +715,10 @@ func (f *faucet) loop() {
 			log.Info("Updated faucet state", "number", head.Number, "hash", head.Hash(), "age", common.PrettyAge(timestamp), "balance", f.balance, "nonce", f.nonce, "price", f.price)
 
 			balance := new(big.Int).Div(f.balance, ether)
-			peers := f.stack.Server().PeerCount()
+			peers := -1
+			if f.stack != nil {
+				peers = f.stack.Server().PeerCount()
+			}
 
 			for _, conn := range f.conns {
 				if err := send(conn, map[string]interface{}{
@@ -953,10 +994,6 @@ func getGenesis(genesisFlag *string, goerliFlag bool, rinkebyFlag bool) (*core.G
 		var genesis core.Genesis
 		err := common.LoadJSON(*genesisFlag, &genesis)
 		return &genesis, err
-	case goerliFlag:
-		return core.DefaultGoerliGenesisBlock(), nil
-	case rinkebyFlag:
-		return core.DefaultRinkebyGenesisBlock(), nil
 	default:
 		return nil, fmt.Errorf("no genesis flag provided")
 	}

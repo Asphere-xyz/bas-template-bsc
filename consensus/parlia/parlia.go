@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common/systemcontract"
 	"io"
 	"math"
 	"math/big"
@@ -29,7 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/forkid"
 	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -68,18 +68,6 @@ var (
 	diffNoTurn = big.NewInt(1)            // Block difficulty for out-of-turn signatures
 	// 100 native token
 	maxSystemBalance = new(big.Int).Mul(big.NewInt(100), big.NewInt(params.Ether))
-
-	systemContracts = map[common.Address]bool{
-		common.HexToAddress(systemcontracts.ValidatorContract):          true,
-		common.HexToAddress(systemcontracts.SlashContract):              true,
-		common.HexToAddress(systemcontracts.SystemRewardContract):       true,
-		common.HexToAddress(systemcontracts.LightClientContract):        true,
-		common.HexToAddress(systemcontracts.RelayerHubContract):         true,
-		common.HexToAddress(systemcontracts.GovHubContract):             true,
-		common.HexToAddress(systemcontracts.TokenHubContract):           true,
-		common.HexToAddress(systemcontracts.RelayerIncentivizeContract): true,
-		common.HexToAddress(systemcontracts.CrossChainContract):         true,
-	}
 )
 
 // Various error messages to mark blocks invalid. These should be private to
@@ -149,7 +137,7 @@ type SignerFn func(accounts.Account, string, []byte) ([]byte, error)
 type SignerTxFn func(accounts.Account, *types.Transaction, *big.Int) (*types.Transaction, error)
 
 func isToSystemContract(to common.Address) bool {
-	return systemContracts[to]
+	return systemcontract.IsSystemContract(to)
 }
 
 // ecrecover extracts the Ethereum account address from a signed header.
@@ -328,7 +316,7 @@ func (p *Parlia) verifyHeader(chain consensus.ChainHeaderReader, header *types.H
 	number := header.Number.Uint64()
 
 	// Don't waste time checking blocks from the future
-	if header.Time > uint64(time.Now().Unix()) {
+	if header.Time > uint64(time.Now().Unix()+time.Second.Milliseconds()/1000) {
 		return consensus.ErrFutureBlock
 	}
 	// Check that the extra-data contains the vanity, validators and signature.
@@ -521,6 +509,13 @@ func (p *Parlia) snapshot(chain consensus.ChainHeaderReader, number uint64, hash
 		}
 		log.Trace("Stored snapshot to disk", "number", snap.Number, "hash", snap.Hash)
 	}
+
+	var validators []string
+	for v := range snap.Validators {
+		validators = append(validators, v.Hex())
+	}
+	log.Trace("loaded snapshot", "number", snap.Number, "hash", snap.Hash, "validators", strings.Join(validators, ","), "len", len(snap.Validators))
+
 	return snap, err
 }
 
@@ -606,6 +601,9 @@ func (p *Parlia) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 
 	// Set the correct difficulty
 	header.Difficulty = CalcDifficulty(snap, p.val)
+	if header.Difficulty.Cmp(diffInTurn) != 0 && header.Number.Uint64() == 1 {
+		return fmt.Errorf("not your turn for block producing")
+	}
 
 	// Ensure the extra data has all it's components
 	if len(header.Extra) < extraVanity-nextForkHashSize {
@@ -622,6 +620,11 @@ func (p *Parlia) Prepare(chain consensus.ChainHeaderReader, header *types.Header
 		}
 		// sort validator by address
 		sort.Sort(validatorsAscending(newValidators))
+		var newValidatorsString []string
+		for _, validator := range newValidators {
+			newValidatorsString = append(newValidatorsString, validator.Hex())
+		}
+		log.Info("Updating validator set", "validator", strings.Join(newValidatorsString, ","))
 		for _, validator := range newValidators {
 			header.Extra = append(header.Extra, validator.Bytes()...)
 		}
@@ -659,7 +662,7 @@ func (p *Parlia) Finalize(chain consensus.ChainHeaderReader, header *types.Heade
 	if !snap.isMajorityFork(hex.EncodeToString(nextForkHash[:])) {
 		log.Debug("there is a possible fork, and your client is not the majority. Please check...", "nextForkHash", hex.EncodeToString(nextForkHash[:]))
 	}
-	// If the block is a epoch end block, verify the validator list
+	// If the block is an epoch end block, verify the validator list
 	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
 	if header.Number.Uint64()%p.config.Epoch == 0 {
 		newValidators, err := p.getCurrentValidators(header.ParentHash)
@@ -672,6 +675,11 @@ func (p *Parlia) Finalize(chain consensus.ChainHeaderReader, header *types.Heade
 		for i, validator := range newValidators {
 			copy(validatorsBytes[i*validatorBytesLength:], validator.Bytes())
 		}
+		var newValidatorsString []string
+		for _, validator := range newValidators {
+			newValidatorsString = append(newValidatorsString, validator.Hex())
+		}
+		log.Info("Updating validator set", "validator", strings.Join(newValidatorsString, ","))
 
 		extraSuffix := len(header.Extra) - extraSeal
 		if !bytes.Equal(header.Extra[extraVanity:extraSuffix], validatorsBytes) {
@@ -683,7 +691,8 @@ func (p *Parlia) Finalize(chain consensus.ChainHeaderReader, header *types.Heade
 	if header.Number.Cmp(common.Big1) == 0 {
 		err := p.initContract(state, header, cx, txs, receipts, systemTxs, usedGas, false)
 		if err != nil {
-			log.Error("init contract failed")
+			log.Error("init contract failed", "error", err)
+			return err
 		}
 	}
 	if header.Difficulty.Cmp(diffInTurn) != 0 {
@@ -730,7 +739,8 @@ func (p *Parlia) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *
 	if header.Number.Cmp(common.Big1) == 0 {
 		err := p.initContract(state, header, cx, &txs, &receipts, nil, &header.GasUsed, true)
 		if err != nil {
-			log.Error("init contract failed")
+			log.Error("init contract failed", "error", err)
+			return nil, nil, err
 		}
 	}
 	if header.Difficulty.Cmp(diffInTurn) != 0 {
@@ -862,7 +872,7 @@ func (p *Parlia) Seal(chain consensus.ChainHeaderReader, block *types.Block, res
 	copy(header.Extra[len(header.Extra)-extraSeal:], sig)
 
 	// Wait until sealing is terminated or delay timeout.
-	log.Trace("Waiting for slot to sign and propagate", "delay", common.PrettyDuration(delay))
+	log.Info("Waiting for slot to sign and propagate", "delay", common.PrettyDuration(delay))
 	go func() {
 		select {
 		case <-stop:
@@ -897,6 +907,7 @@ func (p *Parlia) shouldWaitForCurrentBlockProcess(chain consensus.ChainHeaderRea
 
 	highestVerifiedHeader := chain.GetHighestVerifiedHeader()
 	if highestVerifiedHeader == nil {
+		log.Warn("Shouldn't wait for block process, because there is no highest verified header")
 		return false
 	}
 
@@ -1014,7 +1025,7 @@ func (p *Parlia) getCurrentValidators(blockHash common.Hash) ([]common.Address, 
 	}
 	// call
 	msgData := (hexutil.Bytes)(data)
-	toAddress := common.HexToAddress(systemcontracts.ValidatorContract)
+	toAddress := common.HexToAddress(systemcontract.ValidatorContract)
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
 	result, err := p.ethAPI.Call(ctx, ethapi.CallArgs{
 		Gas:  &gas,
@@ -1052,7 +1063,7 @@ func (p *Parlia) distributeIncoming(val common.Address, state *state.StateDB, he
 	state.SetBalance(consensus.SystemAddress, big.NewInt(0))
 	state.AddBalance(coinbase, balance)
 
-	doDistributeSysReward := state.GetBalance(common.HexToAddress(systemcontracts.SystemRewardContract)).Cmp(maxSystemBalance) < 0
+	doDistributeSysReward := state.GetBalance(common.HexToAddress(systemcontract.SystemRewardContract)).Cmp(maxSystemBalance) < 0
 	if doDistributeSysReward {
 		var rewards = new(big.Int)
 		rewards = rewards.Rsh(balance, systemRewardPercent)
@@ -1084,7 +1095,7 @@ func (p *Parlia) slash(spoiledVal common.Address, state *state.StateDB, header *
 		return err
 	}
 	// get system message
-	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.SlashContract), data, common.Big0)
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontract.SlashContract), data, common.Big0)
 	// apply message
 	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 }
@@ -1094,26 +1105,26 @@ func (p *Parlia) initContract(state *state.StateDB, header *types.Header, chain 
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
 	// method
 	method := "init"
-	// contracts
-	contracts := []string{
-		systemcontracts.ValidatorContract,
-		systemcontracts.SlashContract,
-		systemcontracts.LightClientContract,
-		systemcontracts.RelayerHubContract,
-		systemcontracts.TokenHubContract,
-		systemcontracts.RelayerIncentivizeContract,
-		systemcontracts.CrossChainContract,
-	}
 	// get packed data
 	data, err := p.validatorSetABI.Pack(method)
 	if err != nil {
 		log.Error("Unable to pack tx for init validator set", "error", err)
 		return err
 	}
+	contracts := []common.Address{
+		common.HexToAddress(systemcontract.ValidatorContract),
+		common.HexToAddress(systemcontract.SlashContract),
+		common.HexToAddress(systemcontract.SystemRewardContract),
+		common.HexToAddress(systemcontract.StakingPoolContract),
+		common.HexToAddress(systemcontract.GovernanceContract),
+		common.HexToAddress(systemcontract.ChainConfigContract),
+		common.HexToAddress(systemcontract.RuntimeUpgradeContract),
+		common.HexToAddress(systemcontract.DeployerProxyContract),
+	}
 	for _, c := range contracts {
-		msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(c), data, common.Big0)
+		msg := p.getSystemMessage(header.Coinbase, c, data, common.Big0)
 		// apply message
-		log.Trace("init contract", "block hash", header.Hash(), "contract", c)
+		log.Info("init contract", "block hash", header.Hash(), "contract", c)
 		err = p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 		if err != nil {
 			return err
@@ -1125,7 +1136,7 @@ func (p *Parlia) initContract(state *state.StateDB, header *types.Header, chain 
 func (p *Parlia) distributeToSystem(amount *big.Int, state *state.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
 	// get system message
-	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.SystemRewardContract), nil, amount)
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontract.SystemRewardContract), nil, amount)
 	// apply message
 	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 }
@@ -1146,7 +1157,7 @@ func (p *Parlia) distributeToValidator(amount *big.Int, validator common.Address
 		return err
 	}
 	// get system message
-	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.ValidatorContract), data, amount)
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontract.ValidatorContract), data, amount)
 	// apply message
 	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 }
@@ -1336,7 +1347,7 @@ func applyMessage(
 		msg.Value(),
 	)
 	if err != nil {
-		log.Error("apply message failed", "msg", string(ret), "err", err)
+		log.Error("apply message failed", "msg", string(ret[64+4:]), "err", err)
 	}
 	return msg.Gas() - returnGas, err
 }

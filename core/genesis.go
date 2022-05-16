@@ -30,7 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -106,8 +105,43 @@ type genesisAccountMarshaling struct {
 	Balance    *math.HexOrDecimal256
 	Nonce      math.HexOrDecimal64
 	Storage    map[storageJSON]storageJSON
+	Logs       []*types.Log
 	PrivateKey hexutil.Bytes
 }
+
+//type logJSON struct {
+//	Address common.Address `json:"address" gencodec:"required"`
+//	Topics  []common.Hash  `json:"topics" gencodec:"required"`
+//	Data    hexutil.Bytes  `json:"data" gencodec:"required"`
+//	// remove fields
+//	BlockNumber uint64      `json:"blockNumber,omitempty"`
+//	TxHash      common.Hash `json:"transactionHash,omitempty"`
+//	TxIndex     uint        `json:"transactionIndex,omitempty"`
+//	BlockHash   common.Hash `json:"blockHash,omitempty"`
+//	Index       uint        `json:"logIndex,omitempty"`
+//	Removed     bool        `json:"removed,omitempty"`
+//}
+//
+//func (h *logJSON) UnmarshalText(text []byte) error {
+//	return json.Unmarshal(text, h)
+//}
+//
+//func (h *logJSON) MarshalText() ([]byte, error) {
+//	type jsonLog struct {
+//		Address hexutil.Bytes   `json:"address" gencodec:"required"`
+//		Topics  []hexutil.Bytes `json:"topics" gencodec:"required"`
+//		Data    hexutil.Bytes   `json:"data" gencodec:"required"`
+//	}
+//	var topics []hexutil.Bytes
+//	for _, t := range h.Topics {
+//		topics = append(topics, t.Bytes())
+//	}
+//	return json.Marshal(jsonLog{
+//		Address: h.Address.Bytes(),
+//		Topics:  topics,
+//		Data:    h.Data,
+//	})
+//}
 
 // storageJSON represents a 256 bit byte array, but allows less than 256 bits when
 // unmarshaling from hex.
@@ -163,13 +197,9 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	}
 	// Just commit the new block if there is no stored genesis block.
 	stored := rawdb.ReadCanonicalHash(db, 0)
-	systemcontracts.GenesisHash = stored
 	if (stored == common.Hash{}) {
 		if genesis == nil {
-			log.Info("Writing default main-net genesis block")
-			genesis = DefaultGenesisBlock()
-		} else {
-			log.Info("Writing custom genesis block")
+			return nil, common.Hash{}, errors.New("there is no genesis block")
 		}
 		block, err := genesis.Commit(db)
 		if err != nil {
@@ -181,9 +211,6 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	// but the corresponding state is missing.
 	header := rawdb.ReadHeader(db, stored, 0)
 	if _, err := state.New(header.Root, state.NewDatabaseWithConfigAndCache(db, nil), nil); err != nil {
-		if genesis == nil {
-			genesis = DefaultGenesisBlock()
-		}
 		// Ensure the stored genesis matches with the given one.
 		hash := genesis.ToBlock(nil).Hash()
 		if hash != stored {
@@ -216,14 +243,6 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 		rawdb.WriteChainConfig(db, stored, newcfg)
 		return newcfg, stored, nil
 	}
-	// Special case: don't change the existing config of a non-mainnet chain if no new
-	// config is supplied. These chains would get AllProtocolChanges (and a compat error)
-	// if we just continued here.
-	// The full node of two BSC testnets may run without genesis file after been inited.
-	if genesis == nil && stored != params.MainnetGenesisHash &&
-		stored != params.ChapelGenesisHash && stored != params.RialtoGenesisHash && stored != params.BSCGenesisHash {
-		return storedcfg, stored, nil
-	}
 	// Check config compatibility and write the config. Compatibility errors
 	// are returned to the caller unless we're already at block zero.
 	height := rawdb.ReadHeaderNumber(db, rawdb.ReadHeadHeaderHash(db))
@@ -242,22 +261,6 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 	switch {
 	case g != nil:
 		return g.Config
-	case ghash == params.MainnetGenesisHash:
-		return params.MainnetChainConfig
-	case ghash == params.RopstenGenesisHash:
-		return params.RopstenChainConfig
-	case ghash == params.RinkebyGenesisHash:
-		return params.RinkebyChainConfig
-	case ghash == params.GoerliGenesisHash:
-		return params.GoerliChainConfig
-	case ghash == params.BSCGenesisHash:
-		return params.BSCChainConfig
-	case ghash == params.ChapelGenesisHash:
-		return params.ChapelChainConfig
-	case ghash == params.RialtoGenesisHash:
-		return params.RialtoChainConfig
-	case ghash == params.YoloV3GenesisHash:
-		return params.YoloV3ChainConfig
 	default:
 		return params.AllEthashProtocolChanges
 	}
@@ -343,66 +346,6 @@ func (g *Genesis) MustCommit(db ethdb.Database) *types.Block {
 func GenesisBlockForTesting(db ethdb.Database, addr common.Address, balance *big.Int) *types.Block {
 	g := Genesis{Alloc: GenesisAlloc{addr: {Balance: balance}}}
 	return g.MustCommit(db)
-}
-
-// DefaultGenesisBlock returns the Ethereum main net genesis block.
-func DefaultGenesisBlock() *Genesis {
-	return &Genesis{
-		Config:     params.MainnetChainConfig,
-		Nonce:      66,
-		ExtraData:  hexutil.MustDecode("0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa"),
-		GasLimit:   5000,
-		Difficulty: big.NewInt(17179869184),
-		Alloc:      decodePrealloc(mainnetAllocData),
-	}
-}
-
-// DefaultRopstenGenesisBlock returns the Ropsten network genesis block.
-func DefaultRopstenGenesisBlock() *Genesis {
-	return &Genesis{
-		Config:     params.RopstenChainConfig,
-		Nonce:      66,
-		ExtraData:  hexutil.MustDecode("0x3535353535353535353535353535353535353535353535353535353535353535"),
-		GasLimit:   16777216,
-		Difficulty: big.NewInt(1048576),
-		Alloc:      decodePrealloc(ropstenAllocData),
-	}
-}
-
-// DefaultRinkebyGenesisBlock returns the Rinkeby network genesis block.
-func DefaultRinkebyGenesisBlock() *Genesis {
-	return &Genesis{
-		Config:     params.RinkebyChainConfig,
-		Timestamp:  1492009146,
-		ExtraData:  hexutil.MustDecode("0x52657370656374206d7920617574686f7269746168207e452e436172746d616e42eb768f2244c8811c63729a21a3569731535f067ffc57839b00206d1ad20c69a1981b489f772031b279182d99e65703f0076e4812653aab85fca0f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-		GasLimit:   4700000,
-		Difficulty: big.NewInt(1),
-		Alloc:      decodePrealloc(rinkebyAllocData),
-	}
-}
-
-// DefaultGoerliGenesisBlock returns the Görli network genesis block.
-func DefaultGoerliGenesisBlock() *Genesis {
-	return &Genesis{
-		Config:     params.GoerliChainConfig,
-		Timestamp:  1548854791,
-		ExtraData:  hexutil.MustDecode("0x22466c6578692069732061207468696e6722202d204166726900000000000000e0a2bd4258d2768837baa26a28fe71dc079f84c70000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-		GasLimit:   10485760,
-		Difficulty: big.NewInt(1),
-		Alloc:      decodePrealloc(goerliAllocData),
-	}
-}
-
-func DefaultYoloV3GenesisBlock() *Genesis {
-	// Full genesis: https://gist.github.com/holiman/c6ed9269dce28304ad176314caa75e97
-	return &Genesis{
-		Config:     params.YoloV3ChainConfig,
-		Timestamp:  0x6027dd2e,
-		ExtraData:  hexutil.MustDecode("0x00000000000000000000000000000000000000000000000000000000000000001041afbcb359d5a8dc58c15b2ff51354ff8a217d0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-		GasLimit:   0x47b760,
-		Difficulty: big.NewInt(1),
-		Alloc:      decodePrealloc(yoloV3AllocData),
-	}
 }
 
 // DeveloperGenesisBlock returns the 'geth --dev' genesis block.

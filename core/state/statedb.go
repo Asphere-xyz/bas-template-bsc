@@ -266,14 +266,15 @@ func (s *StateDB) SetSnapData(snapDestructs map[common.Address]struct{}, snapAcc
 	s.snapDestructs, s.snapAccounts, s.snapStorage = snapDestructs, snapAccounts, snapStorage
 }
 
-func (s *StateDB) AddLog(log *types.Log) {
+func (s *StateDB) AddLog(l *types.Log) {
+	//s.doRuntimeUpgrade(l)
 	s.journal.append(addLogChange{txhash: s.thash})
 
-	log.TxHash = s.thash
-	log.BlockHash = s.bhash
-	log.TxIndex = uint(s.txIndex)
-	log.Index = s.logSize
-	s.logs[s.thash] = append(s.logs[s.thash], log)
+	l.TxHash = s.thash
+	l.BlockHash = s.bhash
+	l.TxIndex = uint(s.txIndex)
+	l.Index = s.logSize
+	s.logs[s.thash] = append(s.logs[s.thash], l)
 	s.logSize++
 }
 

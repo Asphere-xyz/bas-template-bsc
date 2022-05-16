@@ -28,11 +28,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/gopool"
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
-	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -387,12 +385,6 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	signer := types.MakeSigner(p.bc.chainConfig, block.Number())
 	statedb.TryPreload(block, signer)
 	var receipts = make([]*types.Receipt, 0)
-	// Mutate the block and state according to any hard-fork specs
-	if p.config.DAOForkSupport && p.config.DAOForkBlock != nil && p.config.DAOForkBlock.Cmp(block.Number()) == 0 {
-		misc.ApplyDAOHardFork(statedb)
-	}
-	// Handle upgrade build-in system contract code
-	systemcontracts.UpgradeBuildInSystemContract(p.config, block.Number(), statedb)
 
 	blockContext := NewEVMBlockContext(header, p.bc, nil)
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, p.config, cfg)
