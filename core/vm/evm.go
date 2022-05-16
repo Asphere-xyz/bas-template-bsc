@@ -54,6 +54,7 @@ func (evm *EVM) precompile(addr, caller common.Address) (PrecompiledContract, bo
 	evmHook := systemcontract2.CreateEvmHook(addr, systemcontract2.EvmHookContext{
 		CallerAddress: caller,
 		StateDb:       evm.StateDB,
+		Evm:           evm,
 		ChainConfig:   evm.chainConfig,
 		ChainRules:    evm.chainRules,
 	})
@@ -569,8 +570,8 @@ func (evm *EVM) Create(caller ContractRef, code []byte, gas uint64, value *big.I
 }
 
 // CreateWithAddress creates a new contract using code as deployment code.
-func (evm *EVM) CreateWithAddress(caller ContractRef, code []byte, gas uint64, value *big.Int, contractAddr common.Address) (ret []byte, leftOverGas uint64, err error) {
-	ret, _, leftOverGas, err = evm.create(caller, &codeAndHash{code: code}, gas, value, contractAddr, STOP)
+func (evm *EVM) CreateWithAddress(caller common.Address, code []byte, gas uint64, value *big.Int, contractAddr common.Address) (ret []byte, leftOverGas uint64, err error) {
+	ret, _, leftOverGas, err = evm.create(AccountRef(caller), &codeAndHash{code: code}, gas, value, contractAddr, STOP)
 	return
 }
 

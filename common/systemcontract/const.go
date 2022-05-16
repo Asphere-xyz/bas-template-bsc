@@ -48,6 +48,7 @@ var systemContracts = map[common.Address]bool{
 	common.HexToAddress(TokenHubContract):           false,
 	common.HexToAddress(RelayerIncentivizeContract): false,
 	common.HexToAddress(CrossChainContract):         false,
+	common.HexToAddress(TokenManagerContract):       false,
 	// BAS smart contracts
 	common.HexToAddress(StakingPoolContract):    true,
 	common.HexToAddress(GovernanceContract):     true,

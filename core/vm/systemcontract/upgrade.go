@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/systemcontract"
+	"math/big"
 )
 
 type evmHookRuntimeUpgrade struct {
@@ -23,6 +25,10 @@ var (
 	addressType = mustNewType("address")
 	bytesType   = mustNewType("bytes")
 	// input args
+	deployToMethod = abi.NewMethod("deployTo(address,bytes)", "deployTo", abi.Function, "", false, false, abi.Arguments{
+		abi.Argument{Type: addressType}, // system contract address
+		abi.Argument{Type: bytesType},   // new byte code
+	}, abi.Arguments{})
 	upgradeToMethod = abi.NewMethod("upgradeTo(address,bytes)", "upgradeTo", abi.Function, "", false, false, abi.Arguments{
 		abi.Argument{Type: addressType}, // system contract address
 		abi.Argument{Type: bytesType},   // new byte code
@@ -41,7 +47,7 @@ func matchesMethod(input []byte, method abi.Method) []interface{} {
 	return values
 }
 
-var runtimeUpgradeContract = common.HexToAddress("0x0000000000000000000000000000000000007004")
+var runtimeUpgradeContract = common.HexToAddress(systemcontract.RuntimeUpgradeContract)
 
 func (sc *evmHookRuntimeUpgrade) Run(input []byte) ([]byte, error) {
 	if !sc.context.ChainRules.HasRuntimeUpgrade {
@@ -52,6 +58,22 @@ func (sc *evmHookRuntimeUpgrade) Run(input []byte) ([]byte, error) {
 		return nil, errInvalidCaller
 	}
 	// if matches upgrade to method
+	if values := matchesMethod(input, deployToMethod); values != nil {
+		contractAddress, ok := values[0].(common.Address)
+		if !ok {
+			return nil, errFailedToUnpack
+		}
+		deployerByteCode, ok := values[1].([]byte)
+		if !ok {
+			return nil, errFailedToUnpack
+		}
+		byteCode, _, err := sc.context.Evm.CreateWithAddress(contractAddress, deployerByteCode, 0, big.NewInt(0), contractAddress)
+		if err != nil {
+			return nil, err
+		}
+		sc.context.StateDb.SetCode(contractAddress, byteCode)
+		return nil, nil
+	}
 	if values := matchesMethod(input, upgradeToMethod); values != nil {
 		contractAddress, ok := values[0].(common.Address)
 		if !ok {
