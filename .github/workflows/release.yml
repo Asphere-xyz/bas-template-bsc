@@ -139,35 +139,35 @@ jobs:
           name: macos
           path: ./macos
       
-      - name: Download Artifacts
-        uses: actions/download-artifact@v2
-        with:
-          name: windows
-          path: ./windows
-      
-      - name: Download Artifacts
-        uses: actions/download-artifact@v2
-        with:
-          name: arm5
-          path: ./arm5
-      
-      - name: Download Artifacts
-        uses: actions/download-artifact@v2
-        with:
-          name: arm6
-          path: ./arm6
-      
-      - name: Download Artifacts
-        uses: actions/download-artifact@v2
-        with:
-          name: arm7
-          path: ./arm7
-      
-      - name: Download Artifacts
-        uses: actions/download-artifact@v2
-        with:
-          name: arm64
-          path: ./arm64
+#      - name: Download Artifacts
+#        uses: actions/download-artifact@v2
+#        with:
+#          name: windows
+#          path: ./windows
+#
+#      - name: Download Artifacts
+#        uses: actions/download-artifact@v2
+#        with:
+#          name: arm5
+#          path: ./arm5
+#
+#      - name: Download Artifacts
+#        uses: actions/download-artifact@v2
+#        with:
+#          name: arm6
+#          path: ./arm6
+#
+#      - name: Download Artifacts
+#        uses: actions/download-artifact@v2
+#        with:
+#          name: arm7
+#          path: ./arm7
+#
+#      - name: Download Artifacts
+#        uses: actions/download-artifact@v2
+#        with:
+#          name: arm64
+#          path: ./arm64
 
       # ==============================
       #       Create release
@@ -227,43 +227,43 @@ jobs:
 #          asset_path: ./windows/geth.exe
 #          asset_name: geth_windows.exe
 #          asset_content_type: application/octet-stream
-      
-      - name: Upload Release Asset - Linux ARM 5
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-          asset_path: ./arm5/geth-linux-arm-5
-          asset_name: geth-linux-arm-5
-          asset_content_type: application/octet-stream
-      
-      - name: Upload Release Asset - Linux ARM 6
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-          asset_path: ./arm6/geth-linux-arm-6
-          asset_name: geth-linux-arm-6
-          asset_content_type: application/octet-stream
-
-      - name: Upload Release Asset - Linux ARM 7
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-          asset_path: ./arm7/geth-linux-arm-7
-          asset_name: geth-linux-arm-7
-          asset_content_type: application/octet-stream
-
-      - name: Upload Release Asset - Linux ARM 64
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
-          asset_path: ./arm64/geth-linux-arm64
-          asset_name: geth-linux-arm64
-          asset_content_type: application/octet-stream
+#
+#      - name: Upload Release Asset - Linux ARM 5
+#        uses: actions/upload-release-asset@v1
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        with:
+#          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
+#          asset_path: ./arm5/geth-linux-arm-5
+#          asset_name: geth-linux-arm-5
+#          asset_content_type: application/octet-stream
+#
+#      - name: Upload Release Asset - Linux ARM 6
+#        uses: actions/upload-release-asset@v1
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        with:
+#          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
+#          asset_path: ./arm6/geth-linux-arm-6
+#          asset_name: geth-linux-arm-6
+#          asset_content_type: application/octet-stream
+#
+#      - name: Upload Release Asset - Linux ARM 7
+#        uses: actions/upload-release-asset@v1
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        with:
+#          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
+#          asset_path: ./arm7/geth-linux-arm-7
+#          asset_name: geth-linux-arm-7
+#          asset_content_type: application/octet-stream
+#
+#      - name: Upload Release Asset - Linux ARM 64
+#        uses: actions/upload-release-asset@v1
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#        with:
+#          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps
+#          asset_path: ./arm64/geth-linux-arm64
+#          asset_name: geth-linux-arm64
+#          asset_content_type: application/octet-stream
