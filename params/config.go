@@ -178,8 +178,8 @@ type ChainConfig struct {
 	MuirGlacierBlock    *big.Int `json:"muirGlacierBlock,omitempty"`    // Eip-2384 (bomb delay) switch block (nil = no fork, 0 = already activated)
 	BerlinBlock         *big.Int `json:"berlinBlock,omitempty"`         // Berlin switch block (nil = no fork, 0 = already on berlin)
 
-	RuntimeUpgradeBlock *big.Int `json:"RuntimeUpgradeBlock,omitempty"`
-	DeployerProxyBlock  *big.Int `json:"DeployerProxyBlock,omitempty"`
+	RuntimeUpgradeBlock *big.Int `json:"runtimeUpgradeBlock,omitempty"`
+	DeployerProxyBlock  *big.Int `json:"deployerProxyBlock,omitempty"`
 
 	YoloV3Block   *big.Int `json:"yoloV3Block,omitempty"`   // YOLO v3: Gas repricings TODO @holiman add EIP references
 	EWASMBlock    *big.Int `json:"ewasmBlock,omitempty"`    // EWASM switch block (nil = no fork, 0 = already activated)	RamanujanBlock      *big.Int `json:"ramanujanBlock,omitempty" toml:",omitempty"`      // ramanujanBlock switch block (nil = no fork, 0 = already activated)
