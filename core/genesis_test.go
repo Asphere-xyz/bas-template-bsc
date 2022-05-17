@@ -30,17 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-func TestDefaultGenesisBlock(t *testing.T) {
-	block := DefaultGenesisBlock().ToBlock(nil)
-	if block.Hash() != params.MainnetGenesisHash {
-		t.Errorf("wrong mainnet genesis hash, got %v, want %v", block.Hash(), params.MainnetGenesisHash)
-	}
-	block = DefaultRopstenGenesisBlock().ToBlock(nil)
-	if block.Hash() != params.RopstenGenesisHash {
-		t.Errorf("wrong ropsten genesis hash, got %v, want %v", block.Hash(), params.RopstenGenesisHash)
-	}
-}
-
 func TestSetupGenesis(t *testing.T) {
 	var (
 		customghash = common.HexToHash("0x89c99d90b79719238d2645c7642f2c9295246e80775b38cfd162b696817fbd50")
@@ -67,33 +56,6 @@ func TestSetupGenesis(t *testing.T) {
 			},
 			wantErr:    errGenesisNoConfig,
 			wantConfig: params.AllEthashProtocolChanges,
-		},
-		{
-			name: "no block in DB, genesis == nil",
-			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
-				return SetupGenesisBlock(db, nil)
-			},
-			wantHash:   params.MainnetGenesisHash,
-			wantConfig: params.MainnetChainConfig,
-		},
-		{
-			name: "custom block in DB, genesis == nil",
-			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
-				customg.MustCommit(db)
-				return SetupGenesisBlock(db, nil)
-			},
-			wantHash:   customghash,
-			wantConfig: customg.Config,
-		},
-		{
-			name: "custom block in DB, genesis == ropsten",
-			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
-				customg.MustCommit(db)
-				return SetupGenesisBlock(db, DefaultRopstenGenesisBlock())
-			},
-			wantErr:    &GenesisMismatchError{Stored: customghash, New: params.RopstenGenesisHash},
-			wantHash:   params.RopstenGenesisHash,
-			wantConfig: params.RopstenChainConfig,
 		},
 		{
 			name: "compatible config in DB",
@@ -150,41 +112,6 @@ func TestSetupGenesis(t *testing.T) {
 			if stored.Hash() != test.wantHash {
 				t.Errorf("%s: block in DB has hash %s, want %s", test.name, stored.Hash(), test.wantHash)
 			}
-		}
-	}
-}
-
-// TestGenesisHashes checks the congruity of default genesis data to corresponding hardcoded genesis hash values.
-func TestGenesisHashes(t *testing.T) {
-	cases := []struct {
-		genesis *Genesis
-		hash    common.Hash
-	}{
-		{
-			genesis: DefaultGenesisBlock(),
-			hash:    params.MainnetGenesisHash,
-		},
-		{
-			genesis: DefaultGoerliGenesisBlock(),
-			hash:    params.GoerliGenesisHash,
-		},
-		{
-			genesis: DefaultRopstenGenesisBlock(),
-			hash:    params.RopstenGenesisHash,
-		},
-		{
-			genesis: DefaultRinkebyGenesisBlock(),
-			hash:    params.RinkebyGenesisHash,
-		},
-		{
-			genesis: DefaultYoloV3GenesisBlock(),
-			hash:    params.YoloV3GenesisHash,
-		},
-	}
-	for i, c := range cases {
-		b := c.genesis.MustCommit(rawdb.NewMemoryDatabase())
-		if got := b.Hash(); got != c.hash {
-			t.Errorf("case: %d, want: %s, got: %s", i, c.hash.Hex(), got.Hex())
 		}
 	}
 }

@@ -23,7 +23,6 @@ import (
 	"time"
 
 	mapset "github.com/deckarep/golang-set"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/parlia"
@@ -389,7 +388,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			if p, ok := w.engine.(*parlia.Parlia); ok {
 				signedRecent, err := p.SignRecently(w.chain, head.Block.Header())
 				if err != nil {
-					log.Info("Not allowed to propose block", "err", err, "number", head.Block.Number())
+					log.Info("Not allowed to propose block", "err", err)
 					continue
 				}
 				if signedRecent {
@@ -402,7 +401,7 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 		case <-timer.C:
 			// If mining is running resubmit a new work cycle periodically to pull in
 			// higher priced transactions. Disable this overhead for pending blocks.
-			if w.isRunning() && ((w.chainConfig.Clique != nil &&
+			if w.isRunning() && ((w.chainConfig.Ethash != nil) || (w.chainConfig.Clique != nil &&
 				w.chainConfig.Clique.Period > 0) || (w.chainConfig.Parlia != nil && w.chainConfig.Parlia.Period > 0)) {
 				// Short circuit if no new transaction arrives.
 				if atomic.LoadInt32(&w.newTxs) == 0 {
@@ -918,7 +917,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		header.Coinbase = w.coinbase
 	}
 	if err := w.engine.Prepare(w.chain, header); err != nil {
-		log.Warn("Failed to prepare header for mining", "err", err, "number", header.Number.Uint64())
+		log.Error("Failed to prepare header for mining", "err", err)
 		return
 	}
 	// Could potentially happen if starting to mine in an odd state.

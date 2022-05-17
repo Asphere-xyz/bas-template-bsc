@@ -28,8 +28,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"gopkg.in/urfave/cli.v1"
-
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -40,6 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"gopkg.in/urfave/cli.v1"
 )
 
 var (
@@ -75,6 +74,16 @@ It expects the genesis file as argument.`,
 		Description: `
 The init-network command initializes a new genesis block, definition for the network, config files for network nodes.
 It expects the genesis file as argument.`,
+	}
+	dumpGenesisCommand = cli.Command{
+		Action:    utils.MigrateFlags(dumpGenesis),
+		Name:      "dumpgenesis",
+		Usage:     "Dumps genesis block JSON configuration to stdout",
+		ArgsUsage: "",
+		Flags:     []cli.Flag{},
+		Category:  "BLOCKCHAIN COMMANDS",
+		Description: `
+The dumpgenesis command dumps the genesis block configuration in JSON format to stdout.`,
 	}
 	importCommand = cli.Command{
 		Action:    utils.MigrateFlags(importChain),
@@ -208,7 +217,7 @@ func initGenesis(ctx *cli.Context) error {
 			utils.Fatalf("Failed to write genesis block: %v", err)
 		}
 		chaindb.Close()
-		log.Info("Successfully wrote genesis state", "database", name, "hash", hash.String())
+		log.Info("Successfully wrote genesis state", "database", name, "hash", hash)
 	}
 	return nil
 }
@@ -301,6 +310,18 @@ func initNetwork(ctx *cli.Context) error {
 		}
 		defer dump.Close()
 		dump.Write(out)
+	}
+	return nil
+}
+
+func dumpGenesis(ctx *cli.Context) error {
+	// TODO(rjl493456442) support loading from the custom datadir
+	genesis := utils.MakeGenesis(ctx)
+	if genesis == nil {
+		genesis = core.DefaultGenesisBlock()
+	}
+	if err := json.NewEncoder(os.Stdout).Encode(genesis); err != nil {
+		utils.Fatalf("could not encode genesis")
 	}
 	return nil
 }

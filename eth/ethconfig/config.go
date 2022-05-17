@@ -19,17 +19,23 @@ package ethconfig
 
 import (
 	"math/big"
+	"os"
+	"os/user"
+	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
+	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/consensus/parlia"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/miner"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
@@ -52,7 +58,16 @@ var LightClientGPO = gasprice.Config{
 
 // Defaults contains default settings for use on the Ethereum main net.
 var Defaults = Config{
-	SyncMode:                downloader.FastSync,
+	SyncMode: downloader.FastSync,
+	Ethash: ethash.Config{
+		CacheDir:         "ethash",
+		CachesInMem:      2,
+		CachesOnDisk:     3,
+		CachesLockMmap:   false,
+		DatasetsInMem:    1,
+		DatasetsOnDisk:   2,
+		DatasetsLockMmap: false,
+	},
 	NetworkId:               1,
 	TxLookupLimit:           2350000,
 	LightPeers:              100,
@@ -77,6 +92,27 @@ var Defaults = Config{
 	RPCGasCap:   25000000,
 	GPO:         FullNodeGPO,
 	RPCTxFeeCap: 1, // 1 ether
+}
+
+func init() {
+	home := os.Getenv("HOME")
+	if home == "" {
+		if user, err := user.Current(); err == nil {
+			home = user.HomeDir
+		}
+	}
+	if runtime.GOOS == "darwin" {
+		Defaults.Ethash.DatasetDir = filepath.Join(home, "Library", "Ethash")
+	} else if runtime.GOOS == "windows" {
+		localappdata := os.Getenv("LOCALAPPDATA")
+		if localappdata != "" {
+			Defaults.Ethash.DatasetDir = filepath.Join(localappdata, "Ethash")
+		} else {
+			Defaults.Ethash.DatasetDir = filepath.Join(home, "AppData", "Local", "Ethash")
+		}
+	} else {
+		Defaults.Ethash.DatasetDir = filepath.Join(home, ".ethash")
+	}
 }
 
 //go:generate gencodec -type Config -formats toml -out gen_config.go
@@ -144,6 +180,9 @@ type Config struct {
 	// Mining options
 	Miner miner.Config
 
+	// Ethash options
+	Ethash ethash.Config `toml:",omitempty"`
+
 	// Transaction pool options
 	TxPool core.TxPoolConfig
 
@@ -180,7 +219,7 @@ type Config struct {
 }
 
 // CreateConsensusEngine creates a consensus engine for the given chain configuration.
-func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, notify []string, noverify bool, db ethdb.Database, ee *ethapi.PublicBlockChainAPI, genesisHash common.Hash) consensus.Engine {
+func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, config *ethash.Config, notify []string, noverify bool, db ethdb.Database, ee *ethapi.PublicBlockChainAPI, genesisHash common.Hash) consensus.Engine {
 	// If proof-of-authority is requested, set it up
 	if chainConfig.Clique != nil {
 		return clique.New(chainConfig.Clique, db)
@@ -188,5 +227,27 @@ func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, no
 	if chainConfig.Parlia != nil {
 		return parlia.New(chainConfig, db, ee, genesisHash)
 	}
-	panic("no consensus engine")
+	// Otherwise assume proof-of-work
+	switch config.PowMode {
+	case ethash.ModeFake:
+		log.Warn("Ethash used in fake mode")
+	case ethash.ModeTest:
+		log.Warn("Ethash used in test mode")
+	case ethash.ModeShared:
+		log.Warn("Ethash used in shared mode")
+	}
+	engine := ethash.New(ethash.Config{
+		PowMode:          config.PowMode,
+		CacheDir:         stack.ResolvePath(config.CacheDir),
+		CachesInMem:      config.CachesInMem,
+		CachesOnDisk:     config.CachesOnDisk,
+		CachesLockMmap:   config.CachesLockMmap,
+		DatasetDir:       config.DatasetDir,
+		DatasetsInMem:    config.DatasetsInMem,
+		DatasetsOnDisk:   config.DatasetsOnDisk,
+		DatasetsLockMmap: config.DatasetsLockMmap,
+		NotifyFull:       config.NotifyFull,
+	}, notify, noverify)
+	engine.SetThreads(-1) // Disable CPU mining
+	return engine
 }

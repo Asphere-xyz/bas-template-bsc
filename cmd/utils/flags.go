@@ -42,6 +42,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/fdlimit"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
+	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -294,6 +295,44 @@ var (
 	LightNoSyncServeFlag = cli.BoolFlag{
 		Name:  "light.nosyncserve",
 		Usage: "Enables serving light clients before syncing",
+	}
+	// Ethash settings
+	EthashCacheDirFlag = DirectoryFlag{
+		Name:  "ethash.cachedir",
+		Usage: "Directory to store the ethash verification caches (default = inside the datadir)",
+	}
+	EthashCachesInMemoryFlag = cli.IntFlag{
+		Name:  "ethash.cachesinmem",
+		Usage: "Number of recent ethash caches to keep in memory (16MB each)",
+		Value: ethconfig.Defaults.Ethash.CachesInMem,
+	}
+	EthashCachesOnDiskFlag = cli.IntFlag{
+		Name:  "ethash.cachesondisk",
+		Usage: "Number of recent ethash caches to keep on disk (16MB each)",
+		Value: ethconfig.Defaults.Ethash.CachesOnDisk,
+	}
+	EthashCachesLockMmapFlag = cli.BoolFlag{
+		Name:  "ethash.cacheslockmmap",
+		Usage: "Lock memory maps of recent ethash caches",
+	}
+	EthashDatasetDirFlag = DirectoryFlag{
+		Name:  "ethash.dagdir",
+		Usage: "Directory to store the ethash mining DAGs",
+		Value: DirectoryString(ethconfig.Defaults.Ethash.DatasetDir),
+	}
+	EthashDatasetsInMemoryFlag = cli.IntFlag{
+		Name:  "ethash.dagsinmem",
+		Usage: "Number of recent ethash mining DAGs to keep in memory (1+GB each)",
+		Value: ethconfig.Defaults.Ethash.DatasetsInMem,
+	}
+	EthashDatasetsOnDiskFlag = cli.IntFlag{
+		Name:  "ethash.dagsondisk",
+		Usage: "Number of recent ethash mining DAGs to keep on disk (1+GB each)",
+		Value: ethconfig.Defaults.Ethash.DatasetsOnDisk,
+	}
+	EthashDatasetsLockMmapFlag = cli.BoolFlag{
+		Name:  "ethash.dagslockmmap",
+		Usage: "Lock memory maps for recent ethash mining DAGs",
 	}
 	// Transaction pool settings
 	TxPoolLocalsFlag = cli.StringFlag{
@@ -1343,6 +1382,33 @@ func setTxPool(ctx *cli.Context, cfg *core.TxPoolConfig) {
 	}
 }
 
+func setEthash(ctx *cli.Context, cfg *ethconfig.Config) {
+	if ctx.GlobalIsSet(EthashCacheDirFlag.Name) {
+		cfg.Ethash.CacheDir = ctx.GlobalString(EthashCacheDirFlag.Name)
+	}
+	if ctx.GlobalIsSet(EthashDatasetDirFlag.Name) {
+		cfg.Ethash.DatasetDir = ctx.GlobalString(EthashDatasetDirFlag.Name)
+	}
+	if ctx.GlobalIsSet(EthashCachesInMemoryFlag.Name) {
+		cfg.Ethash.CachesInMem = ctx.GlobalInt(EthashCachesInMemoryFlag.Name)
+	}
+	if ctx.GlobalIsSet(EthashCachesOnDiskFlag.Name) {
+		cfg.Ethash.CachesOnDisk = ctx.GlobalInt(EthashCachesOnDiskFlag.Name)
+	}
+	if ctx.GlobalIsSet(EthashCachesLockMmapFlag.Name) {
+		cfg.Ethash.CachesLockMmap = ctx.GlobalBool(EthashCachesLockMmapFlag.Name)
+	}
+	if ctx.GlobalIsSet(EthashDatasetsInMemoryFlag.Name) {
+		cfg.Ethash.DatasetsInMem = ctx.GlobalInt(EthashDatasetsInMemoryFlag.Name)
+	}
+	if ctx.GlobalIsSet(EthashDatasetsOnDiskFlag.Name) {
+		cfg.Ethash.DatasetsOnDisk = ctx.GlobalInt(EthashDatasetsOnDiskFlag.Name)
+	}
+	if ctx.GlobalIsSet(EthashDatasetsLockMmapFlag.Name) {
+		cfg.Ethash.DatasetsLockMmap = ctx.GlobalBool(EthashDatasetsLockMmapFlag.Name)
+	}
+}
+
 func setMiner(ctx *cli.Context, cfg *miner.Config) {
 	if ctx.GlobalIsSet(MinerNotifyFlag.Name) {
 		cfg.Notify = strings.Split(ctx.GlobalString(MinerNotifyFlag.Name), ",")
@@ -1455,6 +1521,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	setEtherbase(ctx, ks, cfg)
 	setGPO(ctx, &cfg.GPO, ctx.GlobalString(SyncModeFlag.Name) == "light")
 	setTxPool(ctx, &cfg.TxPool)
+	setEthash(ctx, cfg)
 	setMiner(ctx, &cfg.Miner)
 	setWhitelist(ctx, cfg)
 	setLes(ctx, cfg)
@@ -1763,7 +1830,12 @@ func MakeChainDatabase(ctx *cli.Context, stack *node.Node, readonly, disableFree
 }
 
 func MakeGenesis(ctx *cli.Context) *core.Genesis {
-	panic("no genesis")
+	var genesis *core.Genesis
+	switch {
+	case ctx.GlobalBool(DeveloperFlag.Name):
+		Fatalf("Developer chains are ephemeral")
+	}
+	return genesis
 }
 
 // MakeChain creates a chain manager from set command line flags.
@@ -1778,6 +1850,19 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	if config.Clique != nil {
 		engine = clique.New(config.Clique, chainDb)
 	} else {
+		engine = ethash.NewFaker()
+		if !ctx.GlobalBool(FakePoWFlag.Name) {
+			engine = ethash.New(ethash.Config{
+				CacheDir:         stack.ResolvePath(ethconfig.Defaults.Ethash.CacheDir),
+				CachesInMem:      ethconfig.Defaults.Ethash.CachesInMem,
+				CachesOnDisk:     ethconfig.Defaults.Ethash.CachesOnDisk,
+				CachesLockMmap:   ethconfig.Defaults.Ethash.CachesLockMmap,
+				DatasetDir:       stack.ResolvePath(ethconfig.Defaults.Ethash.DatasetDir),
+				DatasetsInMem:    ethconfig.Defaults.Ethash.DatasetsInMem,
+				DatasetsOnDisk:   ethconfig.Defaults.Ethash.DatasetsOnDisk,
+				DatasetsLockMmap: ethconfig.Defaults.Ethash.DatasetsLockMmap,
+			}, nil, false)
+		}
 	}
 	if gcmode := ctx.GlobalString(GCModeFlag.Name); gcmode != "full" && gcmode != "archive" {
 		Fatalf("--%s must be either 'full' or 'archive'", GCModeFlag.Name)

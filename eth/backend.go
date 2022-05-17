@@ -124,6 +124,10 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	}
 	log.Info("Allocated trie memory caches", "clean", common.StorageSize(config.TrieCleanCache)*1024*1024, "dirty", common.StorageSize(config.TrieDirtyCache)*1024*1024)
 
+	// Transfer mining-related config to the ethash config.
+	ethashConfig := config.Ethash
+	ethashConfig.NotifyFull = config.Miner.NotifyFull
+
 	// Assemble the Ethereum object
 	chainDb, err := stack.OpenAndMergeDatabase("chaindata", config.DatabaseCache, config.DatabaseHandles,
 		config.DatabaseFreezer, config.DatabaseDiff, "eth/db/chaindata/", false, config.PersistDiff)
@@ -158,7 +162,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		log.Info("Unprotected transactions allowed")
 	}
 	ethAPI := ethapi.NewPublicBlockChainAPI(eth.APIBackend)
-	eth.engine = ethconfig.CreateConsensusEngine(stack, chainConfig, config.Miner.Notify, config.Miner.Noverify, chainDb, ethAPI, genesisHash)
+	eth.engine = ethconfig.CreateConsensusEngine(stack, chainConfig, &ethashConfig, config.Miner.Notify, config.Miner.Noverify, chainDb, ethAPI, genesisHash)
 
 	bcVersion := rawdb.ReadDatabaseVersion(chainDb)
 	var dbVer = "<nil>"
