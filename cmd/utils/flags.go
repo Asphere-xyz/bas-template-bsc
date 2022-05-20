@@ -354,7 +354,7 @@ var (
 		Usage: "Duration for announcing local pending transactions again (default = 10 years, minimum = 1 minute)",
 		Value: ethconfig.Defaults.TxPool.ReannounceTime,
 	}
-	TxPoolGasFreeContracts = cli.DurationFlag{
+	TxPoolGasFreeContracts = cli.StringSliceFlag{
 		Name:  "txpool.gasfreecontracts",
 		Usage: "Comma delimited list of the gas free smart contracts",
 	}
