@@ -594,7 +594,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		return ErrInvalidSender
 	}
 	// Drop non-local transactions under our own minimal accepted gas price
-	isGasFree := pool.config.GasFreeContracts != nil && pool.config.GasFreeContracts[*tx.To()]
+	isGasFree := tx.To() != nil && pool.config.GasFreeContracts != nil && pool.config.GasFreeContracts[*tx.To()]
 	if !local && tx.GasPriceIntCmp(pool.gasPrice) < 0 && !isGasFree {
 		return ErrUnderpriced
 	}

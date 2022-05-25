@@ -356,7 +356,7 @@ var (
 	}
 	TxPoolGasFreeContracts = cli.StringSliceFlag{
 		Name:  "txpool.gasfreecontracts",
-		Usage: "Comma delimited list of the gas free smart contracts",
+		Usage: "List with gas free recipients",
 	}
 	// Performance tuning settings
 	CacheFlag = cli.IntFlag{
@@ -1334,6 +1334,9 @@ func setTxPool(ctx *cli.Context, cfg *core.TxPoolConfig) {
 	if ctx.GlobalIsSet(TxPoolGasFreeContracts.Name) {
 		cfg.GasFreeContracts = make(map[common.Address]bool)
 		for _, rawAddress := range ctx.GlobalStringSlice(TxPoolGasFreeContracts.Name) {
+			if !common.IsHexAddress(rawAddress) {
+				Fatalf("Unable to parse address for the [%s], failed on address (%s)", TxPoolGasFreeContracts.Name, rawAddress)
+			}
 			address := common.HexToAddress(rawAddress)
 			if address == (common.Address{}) {
 				Fatalf("Unable to parse address for the [%s], failed on address (%s)", TxPoolGasFreeContracts.Name, rawAddress)
