@@ -356,7 +356,7 @@ var (
 	}
 	TxPoolGasFreeContracts = cli.StringSliceFlag{
 		Name:  "txpool.gasfreecontracts",
-		Usage: "Comma delimited list of the gas free smart contracts",
+		Usage: "List with gas free recipients",
 	}
 	// Performance tuning settings
 	CacheFlag = cli.IntFlag{
