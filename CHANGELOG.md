@@ -1,21 +1,19 @@
 # Changelog
 
-## v1.0.1
-
-FEATURES
-* [\#5](https://github.com/binance-chain/bsc/pull/5) enable bep2e tokens for faucet
-* [\#14](https://github.com/binance-chain/bsc/pull/14) add cross chain contract to system contract
-* [\#15](https://github.com/binance-chain/bsc/pull/15) Allow liveness slash fail
-
-IMPROVEMENT
-* [\#11](https://github.com/binance-chain/bsc/pull/11) remove redundant gaslimit check 
+## v1.0.3
 
 BUGFIX
-* [\#4](https://github.com/binance-chain/bsc/pull/4) fix validator failed to sync a block produced by itself
-* [\#6](https://github.com/binance-chain/bsc/pull/6) modify params for Parlia consensus with 21 validators 
-* [\#10](https://github.com/binance-chain/bsc/pull/10) add gas limit check in parlia implement
-* [\#13](https://github.com/binance-chain/bsc/pull/13) fix debug_traceTransaction crashed issue
+* Fixed bug in tx pool that can cause crashing of the node for smart contract deployment
 
+## v1.0.2
+
+BUGFIX
+* Fixed bug with passing `--txpool.gasfreecontracts` flags to the node
+
+## v1.0.1
+
+BUGFIX
+* Fixed genesis config field names
 
 ## v1.0.0
 
