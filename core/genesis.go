@@ -86,6 +86,7 @@ type GenesisAccount struct {
 	Balance    *big.Int                    `json:"balance" gencodec:"required"`
 	Nonce      uint64                      `json:"nonce,omitempty"`
 	PrivateKey []byte                      `json:"secretKey,omitempty"` // for tests
+	Logs       []*types.Log                `json:"logs"`
 }
 
 // field type overrides for gencodec
@@ -105,43 +106,32 @@ type genesisAccountMarshaling struct {
 	Balance    *math.HexOrDecimal256
 	Nonce      math.HexOrDecimal64
 	Storage    map[storageJSON]storageJSON
-	Logs       []*types.Log
+	Logs       []*logMarshasling
 	PrivateKey hexutil.Bytes
 }
 
-//type logJSON struct {
-//	Address common.Address `json:"address" gencodec:"required"`
-//	Topics  []common.Hash  `json:"topics" gencodec:"required"`
-//	Data    hexutil.Bytes  `json:"data" gencodec:"required"`
-//	// remove fields
-//	BlockNumber uint64      `json:"blockNumber,omitempty"`
-//	TxHash      common.Hash `json:"transactionHash,omitempty"`
-//	TxIndex     uint        `json:"transactionIndex,omitempty"`
-//	BlockHash   common.Hash `json:"blockHash,omitempty"`
-//	Index       uint        `json:"logIndex,omitempty"`
-//	Removed     bool        `json:"removed,omitempty"`
-//}
-//
-//func (h *logJSON) UnmarshalText(text []byte) error {
-//	return json.Unmarshal(text, h)
-//}
-//
-//func (h *logJSON) MarshalText() ([]byte, error) {
-//	type jsonLog struct {
-//		Address hexutil.Bytes   `json:"address" gencodec:"required"`
-//		Topics  []hexutil.Bytes `json:"topics" gencodec:"required"`
-//		Data    hexutil.Bytes   `json:"data" gencodec:"required"`
-//	}
-//	var topics []hexutil.Bytes
-//	for _, t := range h.Topics {
-//		topics = append(topics, t.Bytes())
-//	}
-//	return json.Marshal(jsonLog{
-//		Address: h.Address.Bytes(),
-//		Topics:  topics,
-//		Data:    h.Data,
-//	})
-//}
+type logMarshasling types.Log
+
+func (h *logMarshasling) UnmarshalText(text []byte) error {
+	return json.Unmarshal(text, h)
+}
+
+func (h *logMarshasling) MarshalText() ([]byte, error) {
+	type jsonLog struct {
+		Address hexutil.Bytes   `json:"address" gencodec:"required"`
+		Topics  []hexutil.Bytes `json:"topics" gencodec:"required"`
+		Data    hexutil.Bytes   `json:"data" gencodec:"required"`
+	}
+	var topics []hexutil.Bytes
+	for _, t := range h.Topics {
+		topics = append(topics, t.Bytes())
+	}
+	return json.Marshal(jsonLog{
+		Address: h.Address.Bytes(),
+		Topics:  topics,
+		Data:    h.Data,
+	})
+}
 
 // storageJSON represents a 256 bit byte array, but allows less than 256 bits when
 // unmarshaling from hex.
@@ -279,6 +269,9 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 		statedb.SetNonce(addr, account.Nonce)
 		for key, value := range account.Storage {
 			statedb.SetState(addr, key, value)
+		}
+		for _, l := range account.Logs {
+			statedb.AddLog(l)
 		}
 	}
 	root := statedb.IntermediateRoot(false)
