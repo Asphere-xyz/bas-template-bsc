@@ -16,7 +16,7 @@ func main() {
 	}
 	confirmations := 12
 	for i := 0; i < confirmations; i++ {
-		block, err := eth.BlockByNumber(context.Background(), big.NewInt(int64(15946200+i)))
+		block, err := eth.BlockByNumber(context.Background(), big.NewInt(int64(200+i)))
 		if err != nil {
 			panic(err)
 		}

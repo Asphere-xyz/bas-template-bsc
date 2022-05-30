@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"sort"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -86,7 +87,21 @@ type GenesisAccount struct {
 	Balance    *big.Int                    `json:"balance" gencodec:"required"`
 	Nonce      uint64                      `json:"nonce,omitempty"`
 	PrivateKey []byte                      `json:"secretKey,omitempty"` // for tests
-	Logs       []*types.Log                `json:"logs"`
+	Logs       []*logJSON                  `json:"logs,omitempty"`
+}
+
+func ToJsonLogs(logs []*types.Log) (result []*logJSON) {
+	for _, l := range logs {
+		result = append(result, &logJSON{
+			Address: l.Address,
+			Topics:  l.Topics,
+			Data:    l.Data,
+		})
+	}
+	if result == nil {
+		result = []*logJSON{}
+	}
+	return result
 }
 
 // field type overrides for gencodec
@@ -106,31 +121,22 @@ type genesisAccountMarshaling struct {
 	Balance    *math.HexOrDecimal256
 	Nonce      math.HexOrDecimal64
 	Storage    map[storageJSON]storageJSON
-	Logs       []*logMarshasling
+	Logs       []*logJSON
 	PrivateKey hexutil.Bytes
 }
 
-type logMarshasling types.Log
-
-func (h *logMarshasling) UnmarshalText(text []byte) error {
-	return json.Unmarshal(text, h)
+type logJSON struct {
+	Address common.Address `json:"address" gencodec:"required"`
+	Topics  []common.Hash  `json:"topics" gencodec:"required"`
+	Data    hexutil.Bytes  `json:"data" gencodec:"required"`
 }
 
-func (h *logMarshasling) MarshalText() ([]byte, error) {
-	type jsonLog struct {
-		Address hexutil.Bytes   `json:"address" gencodec:"required"`
-		Topics  []hexutil.Bytes `json:"topics" gencodec:"required"`
-		Data    hexutil.Bytes   `json:"data" gencodec:"required"`
-	}
-	var topics []hexutil.Bytes
-	for _, t := range h.Topics {
-		topics = append(topics, t.Bytes())
-	}
-	return json.Marshal(jsonLog{
-		Address: h.Address.Bytes(),
-		Topics:  topics,
+func (h *logJSON) toLog() *types.Log {
+	return &types.Log{
+		Address: h.Address,
+		Topics:  h.Topics,
 		Data:    h.Data,
-	})
+	}
 }
 
 // storageJSON represents a 256 bit byte array, but allows less than 256 bits when
@@ -256,14 +262,25 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 	}
 }
 
-// ToBlock creates the genesis block and writes state of a genesis specification
-// to the given database (or discards it if nil).
-func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
+func (g *Genesis) ToBlockWithReceipts(db ethdb.Database) (*types.Block, []*types.Receipt) {
 	if db == nil {
 		db = rawdb.NewMemoryDatabase()
 	}
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(db), nil)
-	for addr, account := range g.Alloc {
+
+	// since we have receipts and txs root then hashes must be deterministic
+	var genesisAccounts []common.Address
+	for addr := range g.Alloc {
+		genesisAccounts = append(genesisAccounts, addr)
+	}
+	sort.Slice(genesisAccounts, func(i, j int) bool {
+		left, right := new(big.Int).SetBytes(genesisAccounts[i].Bytes()), new(big.Int).SetBytes(genesisAccounts[j].Bytes())
+		return left.Cmp(right) < 0
+	})
+
+	var logs []*types.Log
+	for _, addr := range genesisAccounts {
+		account := g.Alloc[addr]
 		statedb.AddBalance(addr, account.Balance)
 		statedb.SetCode(addr, account.Code)
 		statedb.SetNonce(addr, account.Nonce)
@@ -271,10 +288,28 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 			statedb.SetState(addr, key, value)
 		}
 		for _, l := range account.Logs {
-			statedb.AddLog(l)
+			logs = append(logs, l.toLog())
 		}
 	}
 	root := statedb.IntermediateRoot(false)
+
+	txs := []*types.Transaction{
+		types.NewTx(&types.LegacyTx{
+			GasPrice: big.NewInt(0),
+			To:       &common.Address{},
+			Value:    big.NewInt(0),
+		}),
+	}
+	receipts := []*types.Receipt{
+		{
+			Type:        types.LegacyTxType,
+			PostState:   []byte{0x1},
+			Status:      1,
+			Logs:        logs,
+			BlockNumber: big.NewInt(0),
+		},
+	}
+
 	head := &types.Header{
 		Number:     new(big.Int).SetUint64(g.Number),
 		Nonce:      types.EncodeNonce(g.Nonce),
@@ -294,16 +329,26 @@ func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
 	if g.Difficulty == nil {
 		head.Difficulty = params.GenesisDifficulty
 	}
-	statedb.Commit(nil)
-	statedb.Database().TrieDB().Commit(root, true, nil)
 
-	return types.NewBlock(head, nil, nil, nil, trie.NewStackTrie(nil))
+	genesisBlock := types.NewBlock(head, txs, nil, receipts, trie.NewStackTrie(nil))
+
+	_, _, _ = statedb.Commit(nil)
+	_ = statedb.Database().TrieDB().Commit(root, true, nil)
+
+	return genesisBlock, receipts
+}
+
+// ToBlock creates the genesis block and writes state of a genesis specification
+// to the given database (or discards it if nil).
+func (g *Genesis) ToBlock(db ethdb.Database) *types.Block {
+	block, _ := g.ToBlockWithReceipts(db)
+	return block
 }
 
 // Commit writes the block and state of a genesis specification to the database.
 // The block is committed as the canonical head block.
 func (g *Genesis) Commit(db ethdb.Database) (*types.Block, error) {
-	block := g.ToBlock(db)
+	block, receipts := g.ToBlockWithReceipts(db)
 	if block.Number().Sign() != 0 {
 		return nil, fmt.Errorf("can't commit genesis block with number > 0")
 	}
@@ -316,7 +361,8 @@ func (g *Genesis) Commit(db ethdb.Database) (*types.Block, error) {
 	}
 	rawdb.WriteTd(db, block.Hash(), block.NumberU64(), g.Difficulty)
 	rawdb.WriteBlock(db, block)
-	rawdb.WriteReceipts(db, block.Hash(), block.NumberU64(), nil)
+	rawdb.WriteTxLookupEntriesByBlock(db, block)
+	rawdb.WriteReceipts(db, block.Hash(), block.NumberU64(), receipts)
 	rawdb.WriteCanonicalHash(db, block.Hash(), block.NumberU64())
 	rawdb.WriteHeadBlockHash(db, block.Hash())
 	rawdb.WriteHeadFastBlockHash(db, block.Hash())
