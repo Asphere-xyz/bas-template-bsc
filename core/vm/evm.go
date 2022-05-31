@@ -18,7 +18,6 @@ package vm
 
 import (
 	"errors"
-	systemcontract2 "github.com/ethereum/go-ethereum/core/vm/systemcontract"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -51,16 +50,6 @@ type (
 )
 
 func (evm *EVM) precompile(addr, caller common.Address) (PrecompiledContract, bool) {
-	evmHook := systemcontract2.CreateEvmHook(addr, systemcontract2.EvmHookContext{
-		CallerAddress: caller,
-		StateDb:       evm.StateDB,
-		Evm:           evm,
-		ChainConfig:   evm.chainConfig,
-		ChainRules:    evm.chainRules,
-	})
-	if evmHook != nil {
-		return evmHook, true
-	}
 	var precompiles map[common.Address]PrecompiledContract
 	switch {
 	case evm.chainRules.IsBerlin:
