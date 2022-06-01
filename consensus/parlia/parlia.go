@@ -1346,7 +1346,7 @@ func applyMessage(
 		msg.Gas(),
 		msg.Value(),
 	)
-	if err != nil {
+	if err != nil && len(ret) > 64 {
 		log.Error("apply message failed", "msg", string(ret[64+4:]), "err", err)
 	}
 	return msg.Gas() - returnGas, err
