@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 var _ = (*genesisAccountMarshaling)(nil)
@@ -22,7 +23,7 @@ func (g GenesisAccount) MarshalJSON() ([]byte, error) {
 		Balance    *math.HexOrDecimal256       `json:"balance" gencodec:"required"`
 		Nonce      math.HexOrDecimal64         `json:"nonce,omitempty"`
 		PrivateKey hexutil.Bytes               `json:"secretKey,omitempty"`
-		Logs       []*logJSON                  `json:"logs,omitempty"`
+		Logs       []*logMarshasling           `json:"logs"`
 	}
 	var enc GenesisAccount
 	enc.Code = g.Code
@@ -35,7 +36,12 @@ func (g GenesisAccount) MarshalJSON() ([]byte, error) {
 	enc.Balance = (*math.HexOrDecimal256)(g.Balance)
 	enc.Nonce = math.HexOrDecimal64(g.Nonce)
 	enc.PrivateKey = g.PrivateKey
-	enc.Logs = g.Logs
+	if g.Logs != nil {
+		enc.Logs = make([]*logMarshasling, len(g.Logs))
+		for k, v := range g.Logs {
+			enc.Logs[k] = (*logMarshasling)(v)
+		}
+	}
 	return json.Marshal(&enc)
 }
 
@@ -47,7 +53,7 @@ func (g *GenesisAccount) UnmarshalJSON(input []byte) error {
 		Balance    *math.HexOrDecimal256       `json:"balance" gencodec:"required"`
 		Nonce      *math.HexOrDecimal64        `json:"nonce,omitempty"`
 		PrivateKey *hexutil.Bytes              `json:"secretKey,omitempty"`
-		Logs       []*logJSON                  `json:"logs,omitempty"`
+		Logs       []*logMarshasling           `json:"logs"`
 	}
 	var dec GenesisAccount
 	if err := json.Unmarshal(input, &dec); err != nil {
@@ -73,7 +79,10 @@ func (g *GenesisAccount) UnmarshalJSON(input []byte) error {
 		g.PrivateKey = *dec.PrivateKey
 	}
 	if dec.Logs != nil {
-		g.Logs = dec.Logs
+		g.Logs = make([]*types.Log, len(dec.Logs))
+		for k, v := range dec.Logs {
+			g.Logs[k] = (*types.Log)(v)
+		}
 	}
 	return nil
 }

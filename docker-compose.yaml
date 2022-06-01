@@ -6,7 +6,7 @@ services:
     command:
       - "geth"
       - "--datadir=/datadir"
-      - "--genesis=/datadir/devnet.json"
+      - "--genesis=/datadir/testnet.json"
       - "--networkid=17243"
       - "--nodekeyhex=633ab917d09441de38ae9251e79ced41df39a1c338842b826c18fb1773246e18"
       - "--syncmode=full"
@@ -17,7 +17,7 @@ services:
       - "--http.corsdomain=*"
       - "--http.vhosts=*"
     volumes:
-      - "./genesis/devnet.json:/datadir/devnet.json"
+      - "./genesis/testnet.json:/datadir/testnet.json"
     ports:
       - "8545:8545"
       - "8546:8546"
@@ -28,7 +28,7 @@ services:
     command:
       - "geth"
       - "--datadir=/datadir"
-      - "--genesis=/datadir/devnet.json"
+      - "--genesis=/datadir/testnet.json"
       - "--mine"
       - "--password=/datadir/password.txt"
       - "--allow-insecure-unlock"
@@ -39,7 +39,7 @@ services:
       - "--syncmode=full"
       - "--networkid=17243"
     volumes:
-      - "./genesis/devnet.json:/datadir/devnet.json"
+      - "./genesis/testnet.json:/datadir/testnet.json"
       - "./genesis/keystore:/datadir/keystore"
       - "./genesis/password.txt:/datadir/password.txt"
     restart: always
@@ -48,7 +48,7 @@ services:
     command:
       - "geth"
       - "--datadir=/datadir"
-      - "--genesis=/datadir/devnet.json"
+      - "--genesis=/datadir/testnet.json"
       - "--mine"
       - "--password=/datadir/password.txt"
       - "--allow-insecure-unlock"
@@ -59,7 +59,7 @@ services:
       - "--syncmode=full"
       - "--networkid=17243"
     volumes:
-      - "./genesis/devnet.json:/datadir/devnet.json"
+      - "./genesis/testnet.json:/datadir/testnet.json"
       - "./genesis/keystore:/datadir/keystore"
       - "./genesis/password.txt:/datadir/password.txt"
     restart: always
@@ -68,7 +68,7 @@ services:
     command:
       - "geth"
       - "--datadir=/datadir"
-      - "--genesis=/datadir/devnet.json"
+      - "--genesis=/datadir/testnet.json"
       - "--mine"
       - "--password=/datadir/password.txt"
       - "--allow-insecure-unlock"
@@ -79,7 +79,7 @@ services:
       - "--syncmode=full"
       - "--networkid=17243"
     volumes:
-      - "./genesis/devnet.json:/datadir/devnet.json"
+      - "./genesis/testnet.json:/datadir/testnet.json"
       - "./genesis/keystore:/datadir/keystore"
       - "./genesis/password.txt:/datadir/password.txt"
     restart: always
@@ -88,7 +88,7 @@ services:
     command:
       - "geth"
       - "--datadir=/datadir"
-      - "--genesis=/datadir/devnet.json"
+      - "--genesis=/datadir/testnet.json"
       - "--mine"
       - "--password=/datadir/password.txt"
       - "--allow-insecure-unlock"
@@ -99,7 +99,7 @@ services:
       - "--syncmode=full"
       - "--networkid=17243"
     volumes:
-      - "./genesis/devnet.json:/datadir/devnet.json"
+      - "./genesis/testnet.json:/datadir/testnet.json"
       - "./genesis/keystore:/datadir/keystore"
       - "./genesis/password.txt:/datadir/password.txt"
     restart: always
@@ -108,7 +108,7 @@ services:
     command:
       - "geth"
       - "--datadir=/datadir"
-      - "--genesis=/datadir/devnet.json"
+      - "--genesis=/datadir/testnet.json"
       - "--mine"
       - "--password=/datadir/password.txt"
       - "--allow-insecure-unlock"
@@ -119,7 +119,7 @@ services:
       - "--syncmode=full"
       - "--networkid=17243"
     volumes:
-      - "./genesis/devnet.json:/datadir/devnet.json"
+      - "./genesis/testnet.json:/datadir/testnet.json"
       - "./genesis/keystore:/datadir/keystore"
       - "./genesis/password.txt:/datadir/password.txt"
     restart: always
