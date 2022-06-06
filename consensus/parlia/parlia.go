@@ -140,6 +140,21 @@ func isToSystemContract(to common.Address) bool {
 	return systemcontract.IsSystemContract(to)
 }
 
+func BlockSignature(header *types.Header) ([]byte, error) {
+	if len(header.Extra) < extraSeal {
+		return nil, errMissingSignature
+	}
+	return header.Extra[len(header.Extra)-extraSeal:], nil
+}
+
+func BlockValidators(header *types.Header) ([]common.Address, error) {
+	if len(header.Extra) < extraSeal {
+		return nil, errExtraValidators
+	}
+	validatorBytes := header.Extra[extraVanity : len(header.Extra)-extraSeal]
+	return ParseValidators(validatorBytes)
+}
+
 // ecrecover extracts the Ethereum account address from a signed header.
 func ecrecover(header *types.Header, sigCache *lru.ARCCache, chainId *big.Int) (common.Address, error) {
 	// If the signature's already cached, return that
