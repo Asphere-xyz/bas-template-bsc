@@ -49,7 +49,7 @@ type (
 	GetHashFunc func(uint64) common.Hash
 )
 
-func (evm *EVM) precompile(addr, caller common.Address) (PrecompiledContract, bool) {
+func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
 	var precompiles map[common.Address]PrecompiledContract
 	switch {
 	case evm.chainRules.IsBerlin:
@@ -61,6 +61,7 @@ func (evm *EVM) precompile(addr, caller common.Address) (PrecompiledContract, bo
 	default:
 		precompiles = PrecompiledContractsHomestead
 	}
+	enableBasContracts(precompiles, evm.chainRules)
 	p, ok := precompiles[addr]
 	return p, ok
 }
@@ -227,7 +228,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		return nil, gas, ErrInsufficientBalance
 	}
 	snapshot := evm.StateDB.Snapshot()
-	p, isPrecompile := evm.precompile(addr, caller.Address())
+	p, isPrecompile := evm.precompile(addr)
 
 	if !evm.StateDB.Exist(addr) {
 		if !isPrecompile && evm.chainRules.IsEIP158 && value.Sign() == 0 {
@@ -329,7 +330,7 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 	}
 
 	// It is allowed to call precompiles, even via delegatecall
-	if p, isPrecompile := evm.precompile(addr, caller.Address()); isPrecompile {
+	if p, isPrecompile := evm.precompile(addr); isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
 	} else {
 		addrCopy := addr
@@ -373,7 +374,7 @@ func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []by
 	}
 
 	// It is allowed to call precompiles, even via delegatecall
-	if p, isPrecompile := evm.precompile(addr, caller.Address()); isPrecompile {
+	if p, isPrecompile := evm.precompile(addr); isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
 	} else {
 		addrCopy := addr
@@ -425,7 +426,7 @@ func (evm *EVM) StaticCall(caller ContractRef, addr common.Address, input []byte
 		}(gas)
 	}
 
-	if p, isPrecompile := evm.precompile(addr, caller.Address()); isPrecompile {
+	if p, isPrecompile := evm.precompile(addr); isPrecompile {
 		ret, gas, err = RunPrecompiledContract(p, input, gas)
 	} else {
 		// At this point, we use a copy of address. If we don't, the go compiler will

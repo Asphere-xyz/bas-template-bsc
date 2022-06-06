@@ -128,6 +128,15 @@ func init() {
 	}
 }
 
+// set of BAS specific pre-compiled contracts (0x424153 means BAS)
+var verifyParliaBlockAddress = common.HexToAddress("0x0000000000000000000000000000004241530001")
+
+func enableBasContracts(contracts map[common.Address]PrecompiledContract, chainRules params.Rules) {
+	if chainRules.HasVerifyParliaBlock {
+		contracts[verifyParliaBlockAddress] = &verifyParliaBlock{}
+	}
+}
+
 // ActivePrecompiles returns the precompiles enabled with the current configuration.
 func ActivePrecompiles(rules params.Rules) []common.Address {
 	switch {

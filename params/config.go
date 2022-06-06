@@ -50,7 +50,6 @@ var (
 		big.NewInt(0),
 		big.NewInt(0),
 		big.NewInt(0),
-		big.NewInt(0),
 		nil,
 		nil,
 	}
@@ -78,7 +77,6 @@ var (
 		big.NewInt(0),
 		big.NewInt(0),
 		big.NewInt(0),
-		big.NewInt(0),
 		&CliqueConfig{Period: 0, Epoch: 30000},
 		nil,
 	}
@@ -98,7 +96,6 @@ var (
 		big.NewInt(0),
 		big.NewInt(0),
 		nil, nil, nil, nil,
-		big.NewInt(0),
 		big.NewInt(0),
 		big.NewInt(0),
 		big.NewInt(0),
@@ -178,9 +175,6 @@ type ChainConfig struct {
 	MuirGlacierBlock    *big.Int `json:"muirGlacierBlock,omitempty"`    // Eip-2384 (bomb delay) switch block (nil = no fork, 0 = already activated)
 	BerlinBlock         *big.Int `json:"berlinBlock,omitempty"`         // Berlin switch block (nil = no fork, 0 = already on berlin)
 
-	RuntimeUpgradeBlock *big.Int `json:"runtimeUpgradeBlock,omitempty"`
-	DeployerProxyBlock  *big.Int `json:"deployerProxyBlock,omitempty"`
-
 	YoloV3Block   *big.Int `json:"yoloV3Block,omitempty"`   // YOLO v3: Gas repricings TODO @holiman add EIP references
 	EWASMBlock    *big.Int `json:"ewasmBlock,omitempty"`    // EWASM switch block (nil = no fork, 0 = already activated)	RamanujanBlock      *big.Int `json:"ramanujanBlock,omitempty" toml:",omitempty"`      // ramanujanBlock switch block (nil = no fork, 0 = already activated)
 	CatalystBlock *big.Int `json:"catalystBlock,omitempty"` // Catalyst switch block (nil = no fork, 0 = already on catalyst)
@@ -189,6 +183,8 @@ type ChainConfig struct {
 	NielsBlock      *big.Int `json:"nielsBlock,omitempty" toml:",omitempty"`      // nielsBlock switch block (nil = no fork, 0 = already activated)
 	MirrorSyncBlock *big.Int `json:"mirrorSyncBlock,omitempty" toml:",omitempty"` // mirrorSyncBlock switch block (nil = no fork, 0 = already activated)
 	BrunoBlock      *big.Int `json:"brunoBlock,omitempty" toml:",omitempty"`      // brunoBlock switch block (nil = no fork, 0 = already activated)
+
+	VerifyParliaBlock *big.Int `json:"verifyParliaBlock,omitempty" toml:",omitempty"`
 
 	// Various consensus engines
 	Clique *CliqueConfig `json:"clique,omitempty" toml:",omitempty"`
@@ -351,12 +347,8 @@ func (c *ChainConfig) IsEWASM(num *big.Int) bool {
 	return isForked(c.EWASMBlock, num)
 }
 
-func (c *ChainConfig) HasRuntimeUpgrade(num *big.Int) bool {
-	return isForked(c.RuntimeUpgradeBlock, num)
-}
-
-func (c *ChainConfig) HasDeployerProxy(num *big.Int) bool {
-	return isForked(c.DeployerProxyBlock, num)
+func (c *ChainConfig) IsVerifyParliaBlock(num *big.Int) bool {
+	return isForked(c.VerifyParliaBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -533,7 +525,7 @@ type Rules struct {
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsCatalyst                                    bool
-	HasRuntimeUpgrade, HasDeployerProxy                     bool
+	HasVerifyParliaBlock                                    bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -543,18 +535,17 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		chainID = new(big.Int)
 	}
 	return Rules{
-		ChainID:           new(big.Int).Set(chainID),
-		IsHomestead:       c.IsHomestead(num),
-		IsEIP150:          c.IsEIP150(num),
-		IsEIP155:          c.IsEIP155(num),
-		IsEIP158:          c.IsEIP158(num),
-		IsByzantium:       c.IsByzantium(num),
-		IsConstantinople:  c.IsConstantinople(num),
-		IsPetersburg:      c.IsPetersburg(num),
-		IsIstanbul:        c.IsIstanbul(num),
-		IsBerlin:          c.IsBerlin(num),
-		IsCatalyst:        c.IsCatalyst(num),
-		HasRuntimeUpgrade: c.HasRuntimeUpgrade(num),
-		HasDeployerProxy:  c.HasDeployerProxy(num),
+		ChainID:              new(big.Int).Set(chainID),
+		IsHomestead:          c.IsHomestead(num),
+		IsEIP150:             c.IsEIP150(num),
+		IsEIP155:             c.IsEIP155(num),
+		IsEIP158:             c.IsEIP158(num),
+		IsByzantium:          c.IsByzantium(num),
+		IsConstantinople:     c.IsConstantinople(num),
+		IsPetersburg:         c.IsPetersburg(num),
+		IsIstanbul:           c.IsIstanbul(num),
+		IsBerlin:             c.IsBerlin(num),
+		IsCatalyst:           c.IsCatalyst(num),
+		HasVerifyParliaBlock: c.IsVerifyParliaBlock(num),
 	}
 }
