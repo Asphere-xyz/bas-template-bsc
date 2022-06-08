@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"math/big"
@@ -20,7 +21,7 @@ func NewVerifyParliaBlock() *verifyParliaBlock {
 }
 
 // RequiredGas returns the gas required to execute the pre-compiled contract.
-func (c *verifyParliaBlock) RequiredGas(input []byte) uint64 {
+func (c *verifyParliaBlock) RequiredGas([]byte) uint64 {
 	return params.VerifyParliaBlockGas
 }
 
@@ -54,15 +55,14 @@ var verifyParliaBlockInput = mustNewArguments(
 )
 
 var verifyParliaBlockOutput = mustNewArguments(
-	"uint64 blockNumber",
 	"bytes32 blockHash",
-	"bytes signingData",
+	"uint64 blockNumber",
+	"address signer",
 	"address[] validators",
-	"bytes signature",
 	"bytes32 parentHash",
 )
 
-func (c *verifyParliaBlock) Run(input []byte) ([]byte, error) {
+func (c *verifyParliaBlock) Run(input []byte) (result []byte, err error) {
 	var chainId *big.Int
 	var blockProof []byte
 	var epochInterval uint32
@@ -94,10 +94,12 @@ func (c *verifyParliaBlock) Run(input []byte) ([]byte, error) {
 	if err := rlp.Decode(bytes.NewReader(blockProof), header); err != nil {
 		return nil, err
 	}
-	signingData := parliaRLP(header, chainId)
-	signature, err := parliaSignature(header)
-	if err != nil {
-		return nil, err
+	var signer common.Address
+	if header.Number.Uint64() != 0 {
+		signer, err = recoverParliaBlockSigner(header, chainId)
+		if err != nil {
+			return nil, err
+		}
 	}
 	var validators []common.Address
 	if header.Number.Uint64()%uint64(epochInterval) == 0 {
@@ -107,16 +109,14 @@ func (c *verifyParliaBlock) Run(input []byte) ([]byte, error) {
 		}
 	}
 	return verifyParliaBlockOutput.Pack(
-		// block number
-		header.Number.Uint64(),
 		// block hash
 		header.Hash(),
+		// block number
+		header.Number.Uint64(),
 		// signing data
-		signingData,
+		signer,
 		// validators
 		validators,
-		// signature
-		signature,
 		// parent hash
 		header.ParentHash,
 	)
@@ -127,34 +127,13 @@ const (
 	extraSeal   = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
 )
 
-func parliaSignature(header *types.Header) ([]byte, error) {
+func recoverParliaBlockSigner(header *types.Header, chainId *big.Int) (signer common.Address, err error) {
 	if len(header.Extra) < extraSeal {
-		return nil, errBadParliaBlock
+		return signer, errBadParliaBlock
 	}
-	return header.Extra[len(header.Extra)-extraSeal:], nil
-}
-
-func extractParliaValidators(header *types.Header) ([]common.Address, error) {
-	if len(header.Extra) < extraSeal {
-		return nil, errBadParliaBlock
-	}
-	validatorBytes := header.Extra[extraVanity : len(header.Extra)-extraSeal]
-	if len(validatorBytes)%common.AddressLength != 0 {
-		return nil, errBadParliaBlock
-	}
-	n := len(validatorBytes) / common.AddressLength
-	result := make([]common.Address, n)
-	for i := 0; i < n; i++ {
-		address := make([]byte, common.AddressLength)
-		copy(address, validatorBytes[i*common.AddressLength:(i+1)*common.AddressLength])
-		result[i] = common.BytesToAddress(address)
-	}
-	return result, nil
-}
-
-func parliaRLP(header *types.Header, chainId *big.Int) []byte {
+	signature := header.Extra[len(header.Extra)-extraSeal:]
 	b := new(bytes.Buffer)
-	err := rlp.Encode(b, []interface{}{
+	err = rlp.Encode(b, []interface{}{
 		chainId,
 		header.ParentHash,
 		header.UncleHash,
@@ -175,5 +154,26 @@ func parliaRLP(header *types.Header, chainId *big.Int) []byte {
 	if err != nil {
 		panic("can't encode: " + err.Error())
 	}
-	return b.Bytes()
+	signingData := b.Bytes()
+	publicKey, err := crypto.Ecrecover(crypto.Keccak256(signingData), signature)
+	if err != nil {
+		return signer, err
+	}
+	copy(signer[:], crypto.Keccak256(publicKey[1:])[12:])
+	return signer, nil
+}
+
+func extractParliaValidators(header *types.Header) ([]common.Address, error) {
+	validatorBytes := header.Extra[extraVanity : len(header.Extra)-extraSeal]
+	if len(validatorBytes)%common.AddressLength != 0 {
+		return nil, errBadParliaBlock
+	}
+	n := len(validatorBytes) / common.AddressLength
+	result := make([]common.Address, n)
+	for i := 0; i < n; i++ {
+		address := make([]byte, common.AddressLength)
+		copy(address, validatorBytes[i*common.AddressLength:(i+1)*common.AddressLength])
+		result[i] = common.BytesToAddress(address)
+	}
+	return result, nil
 }
