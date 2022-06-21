@@ -4,16 +4,17 @@ import (
 	"context"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/parlia"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/ethdb/memorydb"
+	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie"
 	"golang.org/x/crypto/sha3"
 	"io"
 	"math/big"
-
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/rlp"
+	"os"
 )
 
 const (
@@ -71,40 +72,109 @@ func ecrecover(header *types.Header, chainId *big.Int) (common.Address, error) {
 	return signer, nil
 }
 
+type proofList struct {
+	items map[string][]byte
+}
+
+func (n *proofList) Put(key []byte, value []byte) error {
+	if n.items == nil {
+		n.items = make(map[string][]byte)
+	}
+	println(fmt.Sprintf(" + key=%s value=%s", hexutil.Encode(key), hexutil.Encode(value)))
+	n.items[hexutil.Encode(key)] = value
+	return nil
+}
+
+func (n *proofList) Delete(key []byte) error {
+	panic("not supported")
+}
+
+func (n *proofList) Has(key []byte) (bool, error) {
+	_, ok := n.items[hexutil.Encode(key)]
+	return ok, nil
+}
+
+func (n *proofList) Get(key []byte) ([]byte, error) {
+	res, _ := n.items[hexutil.Encode(key)]
+	return res, nil
+}
+
+func createProof(eth *ethclient.Client) {
+	tree, _ := trie.New(common.Hash{}, trie.NewDatabase(memorydb.New()))
+	block, err := eth.BlockByNumber(context.Background(), big.NewInt(1))
+	if err != nil {
+		panic(err)
+	}
+	receipts, err := eth.TransactionRecipientsInBlock(context.Background(), big.NewInt(1))
+	if err != nil {
+		panic(err)
+	}
+	root := types.DeriveSha(types.Receipts(receipts), tree)
+	if block.ReceiptHash() != root {
+		panic(fmt.Sprintf("bad root, %s != %s", block.ReceiptHash().Hex(), root.Hex()))
+	}
+	firstReceipt := receipts[0]
+	firstReceiptKey, _ := rlp.EncodeToBytes(firstReceipt.TransactionIndex)
+	var proof proofList
+	if err := tree.Prove(firstReceiptKey, 0, &proof); err != nil {
+		panic(err)
+	}
+	println(root.Hex())
+	_, err = trie.VerifyProof(root, firstReceiptKey, &proof)
+	if err != nil {
+		panic(err)
+	}
+
+	os.Exit(0)
+}
+
 func main() {
 	eth, err := ethclient.Dial("https://rpc.ankr.com/bsc")
 	if err != nil {
 		panic(err)
 	}
-	//confirmations := 12
-	//for i := 0; i < confirmations; i++ {
-	//	block, err := eth.BlockByNumber(context.Background(), big.NewInt(int64(15946200+i)))
-	//	if err != nil {
-	//		panic(err)
-	//	}
-	//	payload, _ := rlp.EncodeToBytes(block.Header())
-	//	println(hexutil.Encode(payload))
+
+	createProof(eth)
+
+	confirmations := 1
+	for i := 0; i < confirmations; i++ {
+		block, err := eth.BlockByNumber(context.Background(), big.NewInt(int64(1+i)))
+		if err != nil {
+			panic(err)
+		}
+		payload, _ := rlp.EncodeToBytes(block.Header())
+		println(hexutil.Encode(payload))
+		receipts := make([]*types.Receipt, len(block.Transactions()))
+		for i, tx := range block.Transactions() {
+			receipt, err := eth.TransactionReceipt(context.Background(), tx.Hash())
+			if err != nil {
+				panic(err)
+			}
+			receipts[i] = receipt
+		}
+		receiptRoot := types.DeriveSha(types.Receipts(receipts), trie.NewStackTrie(nil))
+		println(receiptRoot.Hex())
+	}
+	//block, err := eth.BlockByNumber(context.Background(), big.NewInt(int64(1)))
+	//if err != nil {
+	//	panic(err)
 	//}
-	block, err := eth.BlockByNumber(context.Background(), big.NewInt(int64(13082000)))
-	if err != nil {
-		panic(err)
-	}
-	println("-----------BLOCK HEADER JSON-----------------")
-	json, _ := block.Header().MarshalJSON()
-	println(string(json))
-	println("------------BLOCK HEADER---------------------")
-	payload, err := rlp.EncodeToBytes(block.Header())
-	println(hexutil.Encode(payload)[2:])
-	println("----------EXTRA DATA SHOULD BE---------------")
-	println(hexutil.Encode(block.Header().Extra[:len(block.Header().Extra)-65])[2:])
-	println("----------SIGNING DATA-----------------------")
-	signingData := parlia.ParliaRLP(block.Header(), big.NewInt(56))
-	println(hexutil.Encode(signingData)[2:])
-	println()
-	println()
-	addr, err := ecrecover(block.Header(), big.NewInt(56))
-	if err != nil {
-		panic(err)
-	}
-	println(addr.Hex())
+	//println("-----------BLOCK HEADER JSON-----------------")
+	//json, _ := block.Header().MarshalJSON()
+	//println(string(json))
+	//println("------------BLOCK HEADER---------------------")
+	//payload, err := rlp.EncodeToBytes(block.Header())
+	//println(hexutil.Encode(payload)[2:])
+	//println("----------EXTRA DATA SHOULD BE---------------")
+	//println(hexutil.Encode(block.Header().Extra[:len(block.Header().Extra)-65])[2:])
+	//println("----------SIGNING DATA-----------------------")
+	//signingData := parlia.ParliaRLP(block.Header(), big.NewInt(56))
+	//println(hexutil.Encode(signingData)[2:])
+	//println()
+	//println()
+	//addr, err := ecrecover(block.Header(), big.NewInt(56))
+	//if err != nil {
+	//	panic(err)
+	//}
+	//println(addr.Hex())
 }
