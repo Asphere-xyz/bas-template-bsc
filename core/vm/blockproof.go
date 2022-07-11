@@ -56,10 +56,13 @@ var verifyParliaBlockInput = mustNewArguments(
 
 var verifyParliaBlockOutput = mustNewArguments(
 	"bytes32 blockHash",
-	"uint64 blockNumber",
-	"address signer",
-	"address[] validators",
 	"bytes32 parentHash",
+	"uint64 blockNumber",
+	"address coinbase",
+	"bytes32 receiptsRoot",
+	"bytes32 txsRoot",
+	"bytes32 stateRoot",
+	"address[] newValidatorSet",
 )
 
 func (c *verifyParliaBlock) Run(input []byte) (result []byte, err error) {
@@ -99,6 +102,8 @@ func (c *verifyParliaBlock) Run(input []byte) (result []byte, err error) {
 		signer, err = recoverParliaBlockSigner(header, chainId)
 		if err != nil {
 			return nil, err
+		} else if signer != header.Coinbase {
+			return nil, errBadParliaBlock
 		}
 	}
 	var validators []common.Address
@@ -109,16 +114,14 @@ func (c *verifyParliaBlock) Run(input []byte) (result []byte, err error) {
 		}
 	}
 	return verifyParliaBlockOutput.Pack(
-		// block hash
-		header.Hash(),
-		// block number
-		header.Number.Uint64(),
-		// signing data
-		signer,
-		// validators
-		validators,
-		// parent hash
-		header.ParentHash,
+		header.Hash(),          // block hash
+		header.ParentHash,      // parent hash
+		header.Number.Uint64(), // block number
+		signer,                 // coinbase
+		header.ReceiptHash,     // receipts root
+		header.TxHash,          // txs root
+		header.Root,            // state root
+		validators,             // new validator set
 	)
 }
 

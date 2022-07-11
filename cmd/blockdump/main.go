@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus/parlia"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -128,50 +130,122 @@ func createProof(eth *ethclient.Client) {
 	os.Exit(0)
 }
 
+func createBlockTransitionProofs(eth *ethclient.Client, sinceBlock, epochLength uint64) {
+	var prevEpochBlock uint64
+	if sinceBlock >= epochLength {
+		prevEpochBlock = (sinceBlock/epochLength)*epochLength - epochLength
+	}
+	prevEpochValidatorBlock, err := eth.BlockByNumber(context.TODO(), big.NewInt(int64(prevEpochBlock)))
+	if err != nil {
+		panic(err)
+	}
+	validators, err := parlia.BlockValidators(prevEpochValidatorBlock.Header())
+	if err != nil {
+		panic(err)
+	}
+	confirmations := len(validators) * 2 / 3
+	uniqueSigners := make(map[common.Address]int)
+	for i := 0; i < int(epochLength); i++ {
+		block, err := eth.BlockByNumber(context.Background(), big.NewInt(int64(sinceBlock)+int64(i)))
+		if err != nil {
+			panic(err)
+		}
+		uniqueSigners[block.Header().Coinbase]++
+		//println(fmt.Sprintf("block #%d", block.NumberU64()))
+		//for signer, count := range uniqueSigners {
+		//	println(fmt.Sprintf(" ~ %s\t%d", signer.Hex(), count))
+		//}
+		payload, _ := rlp.EncodeToBytes(block.Header())
+		println(hexutil.Encode(payload))
+		if len(uniqueSigners) >= confirmations {
+			break
+		}
+	}
+	if len(uniqueSigners) < confirmations {
+		panic("quorum is not reached")
+	}
+}
+
 func main() {
-	eth, err := ethclient.Dial("https://rpc.ankr.com/bsc")
+	//eth, err := ethclient.Dial("https://rpc.ankr.com/bsc")
+	eth, err := ethclient.Dial("https://data-seed-prebsc-1-s1.binance.org:8545/")
 	if err != nil {
 		panic(err)
 	}
 
-	createProof(eth)
-
-	confirmations := 1
-	for i := 0; i < confirmations; i++ {
-		block, err := eth.BlockByNumber(context.Background(), big.NewInt(int64(1+i)))
+	var latestSeal []byte
+	collectedSigners := make(map[common.Address]bool)
+	var fromBlock uint64
+	var totalValidators int
+	for i := 0; i < 100000; i++ {
+		epochBlock := i * 200
+		block, err := eth.BlockByNumber(context.TODO(), big.NewInt(int64(epochBlock)))
 		if err != nil {
 			panic(err)
 		}
-		payload, _ := rlp.EncodeToBytes(block.Header())
-		println(hexutil.Encode(payload))
-		receipts := make([]*types.Receipt, len(block.Transactions()))
-		for i, tx := range block.Transactions() {
-			receipt, err := eth.TransactionReceipt(context.Background(), tx.Hash())
-			if err != nil {
-				panic(err)
-			}
-			receipts[i] = receipt
+		if i == 0 {
+			latestSeal = crypto.Keccak256(block.Header().Extra[32 : len(block.Header().Extra)-65])
+			fromBlock = block.NumberU64()
+			continue
 		}
-		receiptRoot := types.DeriveSha(types.Receipts(receipts), trie.NewStackTrie(nil))
-		println(receiptRoot.Hex())
+		validatorSeal := crypto.Keccak256(block.Header().Extra[32 : len(block.Header().Extra)-65])
+		collectedSigners[block.Coinbase()] = true
+		totalValidatorsArr, _ := parlia.BlockValidators(block.Header())
+		totalValidators = len(totalValidatorsArr)
+		//payload, _ := rlp.EncodeToBytes(block.Header())
+		//println(hexutil.Encode(payload))
+		//fmt.Printf("checked epoch=%d, unique_signers=%d, total_validators=%d\n", i, len(collectedSigners), len(totalValidators))
+		if !bytes.Equal(validatorSeal, latestSeal) {
+			fmt.Printf("found seal diff (%d -> %d), dist=%d, total_validators=%d, signers=%d\n", fromBlock, block.NumberU64(), (block.NumberU64()-fromBlock)/200, totalValidators, len(collectedSigners))
+			latestSeal = validatorSeal
+			fromBlock = block.NumberU64()
+			collectedSigners = make(map[common.Address]bool)
+			totalValidators = 0
+		}
 	}
-	//block, err := eth.BlockByNumber(context.Background(), big.NewInt(int64(1)))
-	//if err != nil {
-	//	panic(err)
+	os.Exit(0)
+
+	//createBlockTransitionProofs(eth, 808800, 200)
+	//os.Exit(0)
+
+	//confirmations := 6
+	//for i := 0; i < confirmations; i++ {
+	//receipts := make([]*types.Receipt, len(block.Transactions()))
+	//for i, tx := range block.Transactions() {
+	//	receipt, err := eth.TransactionReceipt(context.Background(), tx.Hash())
+	//	if err != nil {
+	//		panic(err)
+	//	}
+	//	receipts[i] = receipt
 	//}
-	//println("-----------BLOCK HEADER JSON-----------------")
-	//json, _ := block.Header().MarshalJSON()
-	//println(string(json))
-	//println("------------BLOCK HEADER---------------------")
-	//payload, err := rlp.EncodeToBytes(block.Header())
-	//println(hexutil.Encode(payload)[2:])
-	//println("----------EXTRA DATA SHOULD BE---------------")
-	//println(hexutil.Encode(block.Header().Extra[:len(block.Header().Extra)-65])[2:])
-	//println("----------SIGNING DATA-----------------------")
-	//signingData := parlia.ParliaRLP(block.Header(), big.NewInt(56))
-	//println(hexutil.Encode(signingData)[2:])
-	//println()
-	//println()
+	//receiptRoot := types.DeriveSha(types.Receipts(receipts), trie.NewStackTrie(nil))
+	//println(receiptRoot.Hex())
+	//}
+	//os.Exit(0)
+
+	type a struct {
+		Value uint64
+	}
+	res, _ := rlp.EncodeToBytes(&a{Value: 1587390414})
+	println(hexutil.Encode(res))
+
+	block, err := eth.BlockByNumber(context.Background(), big.NewInt(int64(200)))
+	if err != nil {
+		panic(err)
+	}
+	println("-----------BLOCK HEADER JSON-----------------")
+	json, _ := block.Header().MarshalJSON()
+	println(string(json))
+	println("------------BLOCK HEADER---------------------")
+	payload, err := rlp.EncodeToBytes(block.Header())
+	println(hexutil.Encode(payload)[2:])
+	println("----------EXTRA DATA SHOULD BE---------------")
+	println(hexutil.Encode(block.Header().Extra[:len(block.Header().Extra)-65])[2:])
+	println("----------SIGNING DATA-----------------------")
+	signingData := parlia.ParliaRLP(block.Header(), big.NewInt(97))
+	println(hexutil.Encode(signingData)[2:])
+	println()
+	println()
 	//addr, err := ecrecover(block.Header(), big.NewInt(56))
 	//if err != nil {
 	//	panic(err)
