@@ -50,6 +50,7 @@ var (
 		big.NewInt(0),
 		big.NewInt(0),
 		big.NewInt(0),
+		big.NewInt(0),
 		nil,
 		nil,
 		nil,
@@ -78,6 +79,7 @@ var (
 		big.NewInt(0),
 		big.NewInt(0),
 		big.NewInt(0),
+		big.NewInt(0),
 		nil,
 		&CliqueConfig{Period: 0, Epoch: 30000},
 		nil,
@@ -101,9 +103,13 @@ var (
 		big.NewInt(0),
 		big.NewInt(0),
 		big.NewInt(0),
+		big.NewInt(0),
 		nil,
 		nil, nil,
 	}
+
+	// GoerliChainConfig prysm relays on this field, lets keep it just to let it compile properly
+	GoerliChainConfig = AllCliqueProtocolChanges
 )
 
 // TrustedCheckpoint represents a set of post-processed trie roots (CHT and
@@ -189,6 +195,7 @@ type ChainConfig struct {
 
 	VerifyParliaBlock *big.Int `json:"verifyParliaBlock,omitempty" toml:",omitempty"`
 	BlockRewardsBlock *big.Int `json:"blockRewardsBlock,omitempty" toml:",omitempty"`
+	FastFinalityBlock *big.Int `json:"fastFinalityBlock,omitempty" toml:",omitempty"`
 
 	// Various consensus engines
 	Clique *CliqueConfig `json:"clique,omitempty" toml:",omitempty"`
@@ -208,9 +215,9 @@ func (c *CliqueConfig) String() string {
 
 // ParliaConfig is the consensus engine configs for proof-of-staked-authority based sealing.
 type ParliaConfig struct {
-	Period       uint64   `json:"period"`       // Number of seconds between blocks to enforce
-	Epoch        uint64   `json:"epoch"`        // Epoch length to update validatorSet
-	BlockRewards *big.Int `json:"blockRewards"` // Block rewards to be paid for each produced block
+	Period       uint64   `json:"period"`                 // Number of seconds between blocks to enforce
+	Epoch        uint64   `json:"epoch"`                  // Epoch length to update validatorSet
+	BlockRewards *big.Int `json:"blockRewards,omitempty"` // Block rewards to be paid for each produced block
 }
 
 // String implements the stringer interface, returning the consensus engine details.
@@ -320,6 +327,36 @@ func (c *ChainConfig) IsOnBruno(num *big.Int) bool {
 	return configNumEqual(c.BrunoBlock, num)
 }
 
+// IsEuler returns whether num is either equal to the euler fork block or greater.
+func (c *ChainConfig) IsEuler(num *big.Int) bool {
+	return isForked(c.FastFinalityBlock, num)
+}
+
+// IsOnEuler returns whether num is equal to the euler fork block
+func (c *ChainConfig) IsOnEuler(num *big.Int) bool {
+	return configNumEqual(c.FastFinalityBlock, num)
+}
+
+// IsBoneh returns whether num is either equal to the first fast finality fork block or greater.
+func (c *ChainConfig) IsBoneh(num *big.Int) bool {
+	return isForked(c.FastFinalityBlock, num)
+}
+
+// IsOnBoneh returns whether num is equal to the first fast finality fork block.
+func (c *ChainConfig) IsOnBoneh(num *big.Int) bool {
+	return configNumEqual(c.FastFinalityBlock, num)
+}
+
+// IsLynn returns whether num is either equal to the second fast finality fork block or greater.
+func (c *ChainConfig) IsLynn(num *big.Int) bool {
+	return isForked(c.FastFinalityBlock, num)
+}
+
+// IsOnLynn returns whether num is equal to the second fast finality fork block.
+func (c *ChainConfig) IsOnLynn(num *big.Int) bool {
+	return configNumEqual(c.FastFinalityBlock, num)
+}
+
 // IsMuirGlacier returns whether num is either equal to the Muir Glacier (EIP-2384) fork block or greater.
 func (c *ChainConfig) IsMuirGlacier(num *big.Int) bool {
 	return isForked(c.MuirGlacierBlock, num)
@@ -390,6 +427,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 	for _, cur := range []fork{
 		{name: "mirrorSyncBlock", block: c.MirrorSyncBlock},
 		{name: "brunoBlock", block: c.BrunoBlock},
+		{name: "fastFinalityBlock", block: c.FastFinalityBlock},
 		{name: "berlinBlock", block: c.BerlinBlock},
 	} {
 		if lastFork.name != "" {
@@ -536,6 +574,7 @@ type Rules struct {
 	IsBerlin, IsCatalyst                                    bool
 	HasVerifyParliaBlock                                    bool
 	HasBlockRewards                                         bool
+	IsBoneh                                                 bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -556,6 +595,7 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsIstanbul:           c.IsIstanbul(num),
 		IsBerlin:             c.IsBerlin(num),
 		IsCatalyst:           c.IsCatalyst(num),
+		IsBoneh:              c.IsBoneh(num),
 		HasVerifyParliaBlock: c.IsVerifyParliaBlock(num),
 		HasBlockRewards:      c.IsBlockRewardsBlock(num),
 	}

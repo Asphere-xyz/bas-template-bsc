@@ -1286,6 +1286,54 @@ func (s *PublicBlockChainAPI) GetDiffAccountsWithScope(ctx context.Context, bloc
 	return result, err
 }
 
+// GetJustifiedHeader returns the highest justified block before the input block.
+func (s *PublicBlockChainAPI) GetJustifiedHeader(ctx context.Context, blockNrOrHash *rpc.BlockNumberOrHash) (*types.Header, error) {
+	bNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
+	if blockNrOrHash != nil {
+		bNrOrHash = *blockNrOrHash
+	}
+
+	// Retrieve the block to act as the gas ceiling
+	header, err := s.b.HeaderByNumberOrHash(ctx, bNrOrHash)
+	if err != nil {
+		return nil, err
+	}
+	if header == nil {
+		return nil, errors.New("block header not found")
+	}
+
+	if posa, ok := s.b.Engine().(consensus.PoSA); ok {
+		return posa.GetJustifiedHeader(s.b.Chain(), header), nil
+	}
+
+	// Not support.
+	return nil, nil
+}
+
+// GetFinalizedHeader returns the highest finalized block header before the input block.
+func (s *PublicBlockChainAPI) GetFinalizedHeader(ctx context.Context, blockNrOrHash *rpc.BlockNumberOrHash) (*types.Header, error) {
+	bNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
+	if blockNrOrHash != nil {
+		bNrOrHash = *blockNrOrHash
+	}
+
+	// Retrieve the block to act as the gas ceiling
+	header, err := s.b.HeaderByNumberOrHash(ctx, bNrOrHash)
+	if err != nil {
+		return nil, err
+	}
+	if header == nil {
+		return nil, errors.New("block header not found")
+	}
+
+	if posa, ok := s.b.Engine().(consensus.PoSA); ok {
+		return posa.GetFinalizedHeader(s.b.Chain(), header, types.NaturallyFinalizedDist), nil
+	}
+
+	// Not support.
+	return nil, nil
+}
+
 // ExecutionResult groups all structured logs emitted by the EVM
 // while replaying a transaction in debug mode as well as transaction
 // execution status, the amount of gas used and the return value
@@ -1773,9 +1821,15 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceiptsByBlockNumber(ctx conte
 	if err != nil {
 		return nil, err
 	}
+	if receipts == nil {
+		return nil, fmt.Errorf("block %d receipts not found", blockNumber)
+	}
 	block, err := s.b.BlockByHash(ctx, blockHash)
 	if err != nil {
 		return nil, err
+	}
+	if block == nil {
+		return nil, fmt.Errorf("block %d not found", blockNumber)
 	}
 	txs := block.Transactions()
 	if len(txs) != len(receipts) {

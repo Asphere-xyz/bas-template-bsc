@@ -56,6 +56,9 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.TriesInMemoryFlag,
 			utils.BlockAmountReserved,
 			utils.CheckSnapshotWithMPT,
+			utils.BLSPasswordFileFlag,
+			utils.BLSWalletDirFlag,
+			utils.VoteJournalDirFlag,
 		},
 	},
 	{
@@ -227,6 +230,12 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.BloomFilterSizeFlag,
 			cli.HelpFlag,
 			utils.CatalystFlag,
+		},
+	},
+	{
+		Name: "BLS ACCOUNT",
+		Flags: []cli.Flag{
+			utils.DataDirFlag,
 		},
 	},
 }

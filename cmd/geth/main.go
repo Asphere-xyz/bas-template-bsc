@@ -157,6 +157,9 @@ var (
 		utils.CatalystFlag,
 		utils.BlockAmountReserved,
 		utils.CheckSnapshotWithMPT,
+		utils.BLSPasswordFileFlag,
+		utils.BLSWalletDirFlag,
+		utils.VoteJournalDirFlag,
 	}
 
 	rpcFlags = []cli.Flag{
@@ -238,6 +241,7 @@ func init() {
 		utils.ShowDeprecated,
 		// See snapshot.go
 		snapshotCommand,
+		blsCommand,
 	}
 	sort.Sort(cli.CommandsByName(app.Commands))
 

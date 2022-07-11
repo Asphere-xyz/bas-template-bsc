@@ -130,6 +130,21 @@ func createProof(eth *ethclient.Client) {
 	os.Exit(0)
 }
 
+func extractParliaValidators(header *types.Header) ([]common.Address, error) {
+	validatorBytes := header.Extra[extraVanity : len(header.Extra)-extraSeal]
+	if len(validatorBytes)%common.AddressLength != 0 {
+		return nil, fmt.Errorf("corrupted extra data")
+	}
+	n := len(validatorBytes) / common.AddressLength
+	result := make([]common.Address, n)
+	for i := 0; i < n; i++ {
+		address := make([]byte, common.AddressLength)
+		copy(address, validatorBytes[i*common.AddressLength:(i+1)*common.AddressLength])
+		result[i] = common.BytesToAddress(address)
+	}
+	return result, nil
+}
+
 func createBlockTransitionProofs(eth *ethclient.Client, sinceBlock, epochLength uint64) {
 	var prevEpochBlock uint64
 	if sinceBlock >= epochLength {
@@ -139,7 +154,7 @@ func createBlockTransitionProofs(eth *ethclient.Client, sinceBlock, epochLength 
 	if err != nil {
 		panic(err)
 	}
-	validators, err := parlia.BlockValidators(prevEpochValidatorBlock.Header())
+	validators, err := extractParliaValidators(prevEpochValidatorBlock.Header())
 	if err != nil {
 		panic(err)
 	}
@@ -190,7 +205,7 @@ func main() {
 		}
 		validatorSeal := crypto.Keccak256(block.Header().Extra[32 : len(block.Header().Extra)-65])
 		collectedSigners[block.Coinbase()] = true
-		totalValidatorsArr, _ := parlia.BlockValidators(block.Header())
+		totalValidatorsArr, _ := extractParliaValidators(block.Header())
 		totalValidators = len(totalValidatorsArr)
 		//payload, _ := rlp.EncodeToBytes(block.Header())
 		//println(hexutil.Encode(payload))

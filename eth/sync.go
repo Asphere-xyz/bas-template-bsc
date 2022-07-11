@@ -80,6 +80,17 @@ func (h *handler) syncTransactions(p *eth.Peer) {
 	}
 }
 
+func (h *handler) syncVotes(p *eth.Peer) {
+	// Vote is introduces since the eth/68 protocol.
+	if p.Version() >= eth.ETH68 {
+		votes := h.votepool.GetVotes()
+		if len(votes) == 0 {
+			return
+		}
+		p.AsyncSendVotes(votes)
+	}
+}
+
 // txsyncLoop64 takes care of the initial transaction sync for each new
 // connection. When a new peer appears, we relay all currently pending
 // transactions. In order to minimise egress bandwidth usage, we send

@@ -770,8 +770,16 @@ func (fb *filterBackend) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.
 	return nullSubscription()
 }
 
+func (fb *filterBackend) SubscribeNewVoteEvent(ch chan<- core.NewVoteEvent) event.Subscription {
+	return nullSubscription()
+}
+
 func (fb *filterBackend) SubscribeChainEvent(ch chan<- core.ChainEvent) event.Subscription {
 	return fb.bc.SubscribeChainEvent(ch)
+}
+
+func (fb *filterBackend) SubscribeFinalizedHeaderEvent(ch chan<- core.FinalizedHeaderEvent) event.Subscription {
+	return fb.bc.SubscribeFinalizedHeaderEvent(ch)
 }
 
 func (fb *filterBackend) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription {

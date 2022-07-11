@@ -65,6 +65,7 @@ var allPrecompiles = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{16}):   &bls12381Pairing{},
 	common.BytesToAddress([]byte{17}):   &bls12381MapG1{},
 	common.BytesToAddress([]byte{18}):   &bls12381MapG2{},
+	common.BytesToAddress([]byte{100}):  &voteSignatureVerify{},
 }
 
 // EIP-152 test vectors
@@ -229,6 +230,16 @@ func BenchmarkPrecompiledIdentity(bench *testing.B) {
 		Name:     "128",
 	}
 	benchmarkPrecompiled("04", t, bench)
+}
+
+// Benchmarks the sample inputs from the voteSignatureVerify precompile.
+func BenchmarkPrecompiledVoteSignatureVerify(bench *testing.B) {
+	t := precompiledTest{
+		Input:    "000000000000000000000000000000000000000000000000000000000000000a000000000000000000000000000000000000000000000000000000000000000c555d45d77921e0f26487706179f73c5f8539744b55147c73a3621366bf809c066c8781959ce3621f67c9345da9b5e01ce5113d7b5ae3c6dcd3ca88ad4ed9023fa55c8188060c74f1791eefc78e8aacf0c044e3f6317fe5eadce8ba9db2d19da83e41364c3d6802175acaa392d576a95206d83e5bbfc6022b53c288dc5b60cfe1722298007f1a4b97f47383a9fe1cb7bb5250783e89f3720b7a37bec026ece0b6b32d4d46a7127dcc865f0d30f2ee3dcd5983b686f4e3a9202afc8b608652001c9938906ae1ff1417486096e32511f1bc",
+		Expected: "01",
+		Name:     "",
+	}
+	benchmarkPrecompiled("64", t, bench)
 }
 
 // Tests the sample inputs from the ModExp EIP 198.
