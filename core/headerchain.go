@@ -112,8 +112,54 @@ func NewHeaderChain(chainDb ethdb.Database, config *params.ChainConfig, engine c
 	}
 	hc.currentHeaderHash = hc.CurrentHeader().Hash()
 	headHeaderGauge.Update(hc.CurrentHeader().Number.Int64())
+	justifiedBlockGauge.Update(int64(hc.getJustifiedNumber(hc.CurrentHeader())))
+	finalizedBlockGauge.Update(int64(hc.getFinalizedNumber(hc.CurrentHeader())))
 
 	return hc, nil
+}
+
+// getJustifiedNumber returns the highest justified number before the specific block.
+func (hc *HeaderChain) getJustifiedNumber(header *types.Header) uint64 {
+	if p, ok := hc.engine.(consensus.PoSA); ok {
+		justifiedHeader := p.GetJustifiedHeader(hc, header)
+		if justifiedHeader != nil {
+			return justifiedHeader.Number.Uint64()
+		}
+	}
+
+	return 0
+}
+
+// getFinalizedNumber returns the highest finalized number before the specific block.
+func (hc *HeaderChain) getFinalizedNumber(header *types.Header) uint64 {
+	if p, ok := hc.engine.(consensus.PoSA); ok {
+		if finalizedHeader := p.GetFinalizedHeader(hc, header, types.NaturallyFinalizedDist); finalizedHeader != nil {
+			return finalizedHeader.Number.Uint64()
+		}
+	}
+
+	return 0
+}
+
+// isFinalizedBlockHigher returns true when the new block's finalized block is higher than current block.
+func (hc *HeaderChain) isFinalizedBlockHigher(header *types.Header, curHeader *types.Header) bool {
+	p, ok := hc.engine.(consensus.PoSA)
+	if !ok {
+		return false
+	}
+
+	ancestor := rawdb.FindCommonAncestor(hc.chainDb, header, curHeader)
+	if ancestor == nil {
+		return false
+	}
+
+	finalized := p.GetFinalizedHeader(hc, header, header.Number.Uint64()-ancestor.Number.Uint64())
+	curFinalized := p.GetFinalizedHeader(hc, curHeader, curHeader.Number.Uint64()-ancestor.Number.Uint64())
+	if finalized == nil || curFinalized == nil {
+		return false
+	}
+
+	return finalized.Number.Uint64() > curFinalized.Number.Uint64()
 }
 
 // GetBlockNumber retrieves the block number belonging to the given hash
@@ -216,6 +262,9 @@ func (hc *HeaderChain) writeHeaders(headers []*types.Header) (result *headerWrit
 	// Second clause in the if statement reduces the vulnerability to selfish mining.
 	// Please refer to http://www.cs.cornell.edu/~ie53/publications/btcProcFC.pdf
 	reorg := newTD.Cmp(localTD) > 0
+	if hc.isFinalizedBlockHigher(lastHeader, hc.CurrentHeader()) {
+		reorg = true
+	}
 	if !reorg && newTD.Cmp(localTD) == 0 {
 		if lastNumber < head {
 			reorg = true
@@ -250,6 +299,9 @@ func (hc *HeaderChain) writeHeaders(headers []*types.Header) (result *headerWrit
 				headHeader = hc.GetHeader(headHash, headNumber)
 			)
 			for rawdb.ReadCanonicalHash(hc.chainDb, headNumber) != headHash {
+				if frozen, _ := hc.chainDb.Ancients(); frozen == headNumber {
+					break
+				}
 				rawdb.WriteCanonicalHash(markerBatch, headHash, headNumber)
 				headHash = headHeader.ParentHash
 				headNumber = headHeader.Number.Uint64() - 1
@@ -279,6 +331,8 @@ func (hc *HeaderChain) writeHeaders(headers []*types.Header) (result *headerWrit
 		hc.currentHeaderHash = lastHash
 		hc.currentHeader.Store(types.CopyHeader(lastHeader))
 		headHeaderGauge.Update(lastHeader.Number.Int64())
+		justifiedBlockGauge.Update(int64(hc.getJustifiedNumber(lastHeader)))
+		finalizedBlockGauge.Update(int64(hc.getFinalizedNumber(lastHeader)))
 
 		// Chain status is canonical since this insert was a reorg.
 		// Note that all inserts which have higher TD than existing are 'reorg'.
@@ -545,6 +599,8 @@ func (hc *HeaderChain) SetCurrentHeader(head *types.Header) {
 	hc.currentHeader.Store(head)
 	hc.currentHeaderHash = head.Hash()
 	headHeaderGauge.Update(head.Number.Int64())
+	justifiedBlockGauge.Update(int64(hc.getJustifiedNumber(head)))
+	finalizedBlockGauge.Update(int64(hc.getFinalizedNumber(head)))
 }
 
 type (
@@ -600,6 +656,8 @@ func (hc *HeaderChain) SetHead(head uint64, updateFn UpdateHeadBlocksCallback, d
 		hc.currentHeader.Store(parent)
 		hc.currentHeaderHash = parentHash
 		headHeaderGauge.Update(parent.Number.Int64())
+		justifiedBlockGauge.Update(int64(hc.getJustifiedNumber(parent)))
+		finalizedBlockGauge.Update(int64(hc.getFinalizedNumber(parent)))
 
 		// If this is the first iteration, wipe any leftover data upwards too so
 		// we don't end up with dangling daps in the database

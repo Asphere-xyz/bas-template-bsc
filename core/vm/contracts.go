@@ -22,16 +22,18 @@ import (
 	"errors"
 	"math/big"
 
+	//lint:ignore SA1019 Needed for precompile
+	"github.com/prysmaticlabs/prysm/crypto/bls"
+	"golang.org/x/crypto/ripemd160"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/blake2b"
 	"github.com/ethereum/go-ethereum/crypto/bls12381"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
 	"github.com/ethereum/go-ethereum/params"
-
-	//lint:ignore SA1019 Needed for precompile
-	"golang.org/x/crypto/ripemd160"
 )
 
 // PrecompiledContract is the basic interface for native Go contracts. The implementation
@@ -92,6 +94,22 @@ var PrecompiledContractsBerlin = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{9}): &blake2F{},
 }
 
+// PrecompiledContractsBoneh contains the default set of pre-compiled Ethereum
+// contracts used in the Boneh release.
+var PrecompiledContractsBoneh = map[common.Address]PrecompiledContract{
+	common.BytesToAddress([]byte{1}): &ecrecover{},
+	common.BytesToAddress([]byte{2}): &sha256hash{},
+	common.BytesToAddress([]byte{3}): &ripemd160hash{},
+	common.BytesToAddress([]byte{4}): &dataCopy{},
+	common.BytesToAddress([]byte{5}): &bigModExp{eip2565: true},
+	common.BytesToAddress([]byte{6}): &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}): &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}): &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}): &blake2F{},
+
+	common.BytesToAddress([]byte{100}): &voteSignatureVerify{},
+}
+
 // PrecompiledContractsBLS contains the set of pre-compiled Ethereum
 // contracts specified in EIP-2537. These are exported for testing purposes.
 var PrecompiledContractsBLS = map[common.Address]PrecompiledContract{
@@ -107,6 +125,7 @@ var PrecompiledContractsBLS = map[common.Address]PrecompiledContract{
 }
 
 var (
+	PrecompiledAddressesBoneh     []common.Address
 	PrecompiledAddressesBerlin    []common.Address
 	PrecompiledAddressesIstanbul  []common.Address
 	PrecompiledAddressesByzantium []common.Address
@@ -126,11 +145,25 @@ func init() {
 	for k := range PrecompiledContractsBerlin {
 		PrecompiledAddressesBerlin = append(PrecompiledAddressesBerlin, k)
 	}
+	for k := range PrecompiledContractsBoneh {
+		PrecompiledAddressesBoneh = append(PrecompiledAddressesBoneh, k)
+	}
+}
+
+// set of BAS specific pre-compiled contracts (0x424153 means BAS)
+var verifyParliaBlockAddress = common.HexToAddress("0x0000000000000000000000000000004241530001")
+
+func enableBasContracts(contracts map[common.Address]PrecompiledContract, chainRules params.Rules) {
+	if chainRules.HasVerifyParliaBlock {
+		contracts[verifyParliaBlockAddress] = &verifyParliaBlock{}
+	}
 }
 
 // ActivePrecompiles returns the precompiles enabled with the current configuration.
 func ActivePrecompiles(rules params.Rules) []common.Address {
 	switch {
+	case rules.IsBoneh:
+		return PrecompiledAddressesBoneh
 	case rules.IsBerlin:
 		return PrecompiledAddressesBerlin
 	case rules.IsIstanbul:
@@ -1048,4 +1081,53 @@ func (c *bls12381MapG2) Run(input []byte) ([]byte, error) {
 
 	// Encode the G2 point to 256 bytes
 	return g.EncodePoint(r), nil
+}
+
+var errVoteSignatureVerify = errors.New("invalid signatures")
+
+// voteSignatureVerify implements BEP-126 finality signature verification precompile.
+type voteSignatureVerify struct{}
+
+// RequiredGas returns the gas required to execute the pre-compiled contract.
+func (c *voteSignatureVerify) RequiredGas(input []byte) uint64 {
+	return params.VoteSignatureVerifyGas
+}
+
+func (c *voteSignatureVerify) Run(input []byte) ([]byte, error) {
+	var (
+		srcNum  = new(big.Int).SetBytes(getData(input, 0, 32)).Uint64()
+		tarNum  = new(big.Int).SetBytes(getData(input, 32, 32)).Uint64()
+		srcHash = getData(input, 64, 32)
+		tarHash = getData(input, 96, 32)
+		sig     = getData(input, 128, 96)
+		BLSKey  = getData(input, 224, 48)
+	)
+
+	sigs := make([][]byte, 1)
+	msgs := make([][32]byte, 1)
+	pubKeys := make([]bls.PublicKey, 1)
+
+	voteData := &types.VoteData{
+		SourceNumber: srcNum,
+		SourceHash:   common.BytesToHash(srcHash),
+		TargetNumber: tarNum,
+		TargetHash:   common.BytesToHash(tarHash),
+	}
+	copy(msgs[0][:], voteData.Hash().Bytes())
+
+	pubKey, err := bls.PublicKeyFromBytes(BLSKey)
+	if err != nil {
+		return nil, err
+	}
+	pubKeys[0] = pubKey
+	sigs[0] = sig
+
+	success, err := bls.VerifyMultipleSignatures(sigs, msgs, pubKeys)
+	if err != nil {
+		return nil, err
+	}
+	if !success {
+		return nil, errVoteSignatureVerify
+	}
+	return big1.Bytes(), nil
 }

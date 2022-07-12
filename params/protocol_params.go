@@ -113,13 +113,14 @@ const (
 	MaxCodeSize = 24576 // Maximum bytecode to permit for a contract
 
 	// Precompiled contract gas prices
-	EcrecoverGas        uint64 = 3000 // Elliptic curve sender recovery gas price
-	Sha256BaseGas       uint64 = 60   // Base price for a SHA256 operation
-	Sha256PerWordGas    uint64 = 12   // Per-word price for a SHA256 operation
-	Ripemd160BaseGas    uint64 = 600  // Base price for a RIPEMD160 operation
-	Ripemd160PerWordGas uint64 = 120  // Per-word price for a RIPEMD160 operation
-	IdentityBaseGas     uint64 = 15   // Base price for a data copy operation
-	IdentityPerWordGas  uint64 = 3    // Per-work price for a data copy operation
+	EcrecoverGas           uint64 = 3000  // Elliptic curve sender recovery gas price
+	Sha256BaseGas          uint64 = 60    // Base price for a SHA256 operation
+	Sha256PerWordGas       uint64 = 12    // Per-word price for a SHA256 operation
+	Ripemd160BaseGas       uint64 = 600   // Base price for a RIPEMD160 operation
+	Ripemd160PerWordGas    uint64 = 120   // Per-word price for a RIPEMD160 operation
+	IdentityBaseGas        uint64 = 15    // Base price for a data copy operation
+	IdentityPerWordGas     uint64 = 3     // Per-work price for a data copy operation
+	VoteSignatureVerifyGas uint64 = 35000 // Finality signature verify gas price
 
 	Bn256AddGasByzantium             uint64 = 500    // Byzantium gas needed for an elliptic curve addition
 	Bn256AddGasIstanbul              uint64 = 150    // Gas needed for an elliptic curve addition
@@ -138,6 +139,8 @@ const (
 	Bls12381PairingPerPairGas uint64 = 23000  // Per-point pair gas price for BLS12-381 elliptic curve pairing check
 	Bls12381MapG1Gas          uint64 = 5500   // Gas price for BLS12-381 mapping field element to G1 operation
 	Bls12381MapG2Gas          uint64 = 110000 // Gas price for BLS12-381 mapping field element to G2 operation
+
+	VerifyParliaBlockGas uint64 = 3000 // Native function ~12 times faster comparing to the Solidity version
 )
 
 // Gas discount table for BLS12-381 G1 and G2 multi exponentiation operations

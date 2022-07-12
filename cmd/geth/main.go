@@ -157,6 +157,9 @@ var (
 		utils.CatalystFlag,
 		utils.BlockAmountReserved,
 		utils.CheckSnapshotWithMPT,
+		utils.BLSPasswordFileFlag,
+		utils.BLSWalletDirFlag,
+		utils.VoteJournalDirFlag,
 	}
 
 	rpcFlags = []cli.Flag{
@@ -238,6 +241,7 @@ func init() {
 		utils.ShowDeprecated,
 		// See snapshot.go
 		snapshotCommand,
+		blsCommand,
 	}
 	sort.Sort(cli.CommandsByName(app.Commands))
 
@@ -431,7 +435,11 @@ func unlockAccounts(ctx *cli.Context, stack *node.Node) {
 	}
 	// If insecure account unlocking is not allowed if node's APIs are exposed to external.
 	// Print warning log to user and skip unlocking.
-	if !stack.Config().InsecureUnlockAllowed && stack.Config().ExtRPCEnabled() {
+	isDevMode := false
+	if ctx.GlobalIsSet(utils.NetworkIdFlag.Name) && ctx.GlobalUint64(utils.NetworkIdFlag.Name) == 1337 {
+		isDevMode = true
+	}
+	if !stack.Config().InsecureUnlockAllowed && stack.Config().ExtRPCEnabled() && !isDevMode {
 		utils.Fatalf("Account unlock with HTTP access is forbidden!")
 	}
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)

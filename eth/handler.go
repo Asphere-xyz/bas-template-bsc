@@ -46,6 +46,11 @@ const (
 	// txChanSize is the size of channel listening to NewTxsEvent.
 	// The number is referenced from the size of tx pool.
 	txChanSize = 4096
+
+	// voteChanSize is the size of channel listening to NewVotesEvent.
+	voteChanSize = 256
+
+	deltaTdThreshold = 20
 )
 
 var (
@@ -79,13 +84,26 @@ type txPool interface {
 	SubscribeReannoTxsEvent(chan<- core.ReannoTxsEvent) event.Subscription
 }
 
+// votePool defines the methods needed from a votes pool implementation to
+// support all the operations needed by the Ethereum chain protocols.
+type votePool interface {
+	PutVote(vote *types.VoteEnvelope)
+	FetchVoteByBlockHash(blockHash common.Hash) []*types.VoteEnvelope
+	GetVotes() []*types.VoteEnvelope
+
+	// SubscribeNewVoteEvent should return an event subscription of
+	// NewVotesEvent and send events to the given channel.
+	SubscribeNewVoteEvent(ch chan<- core.NewVoteEvent) event.Subscription
+}
+
 // handlerConfig is the collection of initialization parameters to create a full
 // node network handler.
 type handlerConfig struct {
 	Database               ethdb.Database            // Database for direct sync insertions
 	Chain                  *core.BlockChain          // Blockchain to serve data from
 	TxPool                 txPool                    // Transaction pool to propagate from
-	Network                uint64                    // Network identifier to adfvertise
+	VotePool               votePool                  // Votes pool to propagate from
+	Network                uint64                    // Network identifier to advertise
 	Sync                   downloader.SyncMode       // Whether to fast or full sync
 	DiffSync               bool                      // Whether to diff sync
 	BloomCache             uint64                    // Megabytes to alloc for fast sync bloom
@@ -112,6 +130,7 @@ type handler struct {
 
 	database ethdb.Database
 	txpool   txPool
+	votepool votePool
 	chain    *core.BlockChain
 	maxPeers int
 
@@ -127,6 +146,8 @@ type handler struct {
 	reannoTxsCh   chan core.ReannoTxsEvent
 	reannoTxsSub  event.Subscription
 	minedBlockSub *event.TypeMuxSubscription
+	voteCh        chan core.NewVoteEvent
+	votesSub      event.Subscription
 
 	whitelist map[uint64]common.Hash
 
@@ -152,6 +173,7 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		eventMux:               config.EventMux,
 		database:               config.Database,
 		txpool:                 config.TxPool,
+		votepool:               config.VotePool,
 		chain:                  config.Chain,
 		peers:                  newPeerSet(),
 		whitelist:              config.Whitelist,
@@ -255,7 +277,7 @@ func newHandler(config *handlerConfig) (*handler, error) {
 }
 
 // runEthPeer registers an eth peer into the joint eth/snap peerset, adds it to
-// various subsistems and starts handling messages.
+// various subsystems and starts handling messages.
 func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 	// If the peer has a `snap` extension, wait for it to connect so we can have
 	// a uniform initialization/teardown mechanism
@@ -313,7 +335,7 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 		peer.Log().Error("Ethereum peer registration failed", "err", err)
 		return err
 	}
-	defer h.removePeer(peer.ID())
+	defer h.unregisterPeer(peer.ID())
 
 	p := h.peers.peer(peer.ID())
 	if p == nil {
@@ -332,9 +354,12 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 	}
 	h.chainSync.handlePeerEvent(peer)
 
-	// Propagate existing transactions. new transactions appearing
+	// Propagate existing transactions and votes. new transactions and votes appearing
 	// after this will be sent via broadcasts.
 	h.syncTransactions(peer)
+	if h.votepool != nil {
+		h.syncVotes(peer)
+	}
 
 	// If we have a trusted CHT, reject all peers below that (avoid fast sync eclipse)
 	if h.checkpointHash != (common.Hash{}) {
@@ -395,9 +420,17 @@ func (h *handler) runDiffExtension(peer *diff.Peer, handler diff.Handler) error 
 	return handler(peer)
 }
 
-// removePeer unregisters a peer from the downloader and fetchers, removes it from
-// the set of tracked peers and closes the network connection to it.
+// removePeer requests disconnection of a peer.
 func (h *handler) removePeer(id string) {
+	peer := h.peers.peer(id)
+	if peer != nil {
+		// Hard disconnect at the networking layer. Handler will get an EOF and terminate the peer. defer unregisterPeer will do the cleanup task after then.
+		peer.Peer.Disconnect(p2p.DiscUselessPeer)
+	}
+}
+
+// unregisterPeer removes a peer from the downloader, fetchers and main peer set.
+func (h *handler) unregisterPeer(id string) {
 	// Create a custom logger to avoid printing the entire id
 	var logger log.Logger
 	if len(id) < 16 {
@@ -425,8 +458,6 @@ func (h *handler) removePeer(id string) {
 	if err := h.peers.unregisterPeer(id); err != nil {
 		logger.Error("Ethereum peer removal failed", "err", err)
 	}
-	// Hard disconnect at the networking layer
-	peer.Peer.Disconnect(p2p.DiscUselessPeer)
 }
 
 func (h *handler) Start(maxPeers int) {
@@ -437,6 +468,14 @@ func (h *handler) Start(maxPeers int) {
 	h.txsCh = make(chan core.NewTxsEvent, txChanSize)
 	h.txsSub = h.txpool.SubscribeNewTxsEvent(h.txsCh)
 	go h.txBroadcastLoop()
+
+	// broadcast votes
+	if h.votepool != nil {
+		h.wg.Add(1)
+		h.voteCh = make(chan core.NewVoteEvent, voteChanSize)
+		h.votesSub = h.votepool.SubscribeNewVoteEvent(h.voteCh)
+		go h.voteBroadcastLoop()
+	}
 
 	// announce local pending transactions again
 	h.wg.Add(1)
@@ -459,6 +498,9 @@ func (h *handler) Stop() {
 	h.txsSub.Unsubscribe()        // quits txBroadcastLoop
 	h.reannoTxsSub.Unsubscribe()  // quits txReannounceLoop
 	h.minedBlockSub.Unsubscribe() // quits blockBroadcastLoop
+	if h.votepool != nil {
+		h.votesSub.Unsubscribe() // quits voteBroadcastLoop
+	}
 
 	// Quit chainSync and txsync64.
 	// After this is done, no new peers will be accepted.
@@ -510,7 +552,7 @@ func (h *handler) BroadcastBlock(block *types.Block, propagate bool) {
 		log.Trace("Propagated block", "hash", hash, "recipients", len(transfer), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
 		return
 	}
-	// Otherwise if the block is indeed in out own chain, announce it
+	// Otherwise if the block is indeed in our own chain, announce it
 	if h.chain.HasBlock(hash, block.NumberU64()) {
 		for _, peer := range peers {
 			peer.AsyncSendNewBlockHash(block)
@@ -580,6 +622,35 @@ func (h *handler) ReannounceTransactions(txs types.Transactions) {
 		"announce packs", peersCount, "announced hashes", peersCount*uint(len(hashes)))
 }
 
+// BroadcastVote will propagate a batch of votes to all peers
+// which are not known to already have the given vote.
+func (h *handler) BroadcastVote(vote *types.VoteEnvelope) {
+	var (
+		directCount int // Count of announcements made
+		directPeers int
+
+		voteMap = make(map[*ethPeer]*types.VoteEnvelope) // Set peer->hash to transfer directly
+	)
+
+	// Broadcast vote to a batch of peers not knowing about it
+	peers := h.peers.peersWithoutVote(vote.Hash())
+	for _, peer := range peers {
+		_, peerTD := peer.Head()
+		deltaTD := new(big.Int).Abs(new(big.Int).Sub(h.chain.GetTdByHash(h.chain.CurrentHeader().Hash()), peerTD))
+		if deltaTD.Cmp(big.NewInt(deltaTdThreshold)) < 1 {
+			voteMap[peer] = vote
+		}
+	}
+
+	for peer, _vote := range voteMap {
+		directPeers++
+		directCount += 1
+		votes := []*types.VoteEnvelope{_vote}
+		peer.AsyncSendVotes(votes)
+	}
+	log.Debug("Vote broadcast", "vote packs", directPeers, "broadcast vote", directCount)
+}
+
 // minedBroadcastLoop sends mined blocks to connected peers.
 func (h *handler) minedBroadcastLoop() {
 	defer h.wg.Done()
@@ -613,6 +684,19 @@ func (h *handler) txReannounceLoop() {
 		case event := <-h.reannoTxsCh:
 			h.ReannounceTransactions(event.Txs)
 		case <-h.reannoTxsSub.Err():
+			return
+		}
+	}
+}
+
+// voteBroadcastLoop announces new vote to connected peers.
+func (h *handler) voteBroadcastLoop() {
+	defer h.wg.Done()
+	for {
+		select {
+		case event := <-h.voteCh:
+			h.BroadcastVote(event.Vote)
+		case <-h.votesSub.Err():
 			return
 		}
 	}

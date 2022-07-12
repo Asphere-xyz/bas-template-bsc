@@ -133,7 +133,7 @@ var (
 	}
 	PipeCommitFlag = cli.BoolFlag{
 		Name:  "pipecommit",
-		Usage: "Enable MPT pipeline commit, it will improve syncing performance. It is an experimental feature(default is false)",
+		Usage: "Enable MPT pipeline commit, it will improve syncing performance. It is an experimental feature(default is false), diffsync will be disable if pipeline commit is enabled",
 	}
 	RangeLimitFlag = cli.BoolFlag{
 		Name:  "rangelimit",
@@ -792,6 +792,21 @@ var (
 		Name:  "check-snapshot-with-mpt",
 		Usage: "Enable checking between snapshot and MPT ",
 	}
+
+	BLSPasswordFileFlag = cli.StringFlag{
+		Name:  "blspassword",
+		Usage: "File path for the BLS password, which contains the password to unlock BLS wallet for managing votes in fast_finality feature",
+	}
+
+	BLSWalletDirFlag = DirectoryFlag{
+		Name:  "blswallet",
+		Usage: "Path for the blsWallet dir in fast finality feature (default = inside the datadir)",
+	}
+
+	VoteJournalDirFlag = DirectoryFlag{
+		Name:  "vote-journal-path",
+		Usage: "Path for the voteJournal dir in fast finality feature (default = inside the datadir)",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1209,6 +1224,8 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	setNodeUserIdent(ctx, cfg)
 	setDataDir(ctx, cfg)
 	setSmartCard(ctx, cfg)
+	setBLSWalletDir(ctx, cfg)
+	setVoteJournalDir(ctx, cfg)
 
 	if ctx.GlobalIsSet(ExternalSignerFlag.Name) {
 		cfg.ExternalSigner = ctx.GlobalString(ExternalSignerFlag.Name)
@@ -1238,6 +1255,10 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	if ctx.GlobalIsSet(InsecureUnlockAllowedFlag.Name) {
 		cfg.InsecureUnlockAllowed = ctx.GlobalBool(InsecureUnlockAllowedFlag.Name)
 	}
+
+	if ctx.GlobalIsSet(BLSPasswordFileFlag.Name) {
+		cfg.BLSPasswordFile = ctx.GlobalString(BLSPasswordFileFlag.Name)
+	}
 }
 
 func setSmartCard(ctx *cli.Context, cfg *node.Config) {
@@ -1266,6 +1287,22 @@ func setDataDir(ctx *cli.Context, cfg *node.Config) {
 		cfg.DataDir = ctx.GlobalString(DataDirFlag.Name)
 	case ctx.GlobalBool(DeveloperFlag.Name):
 		cfg.DataDir = "" // unless explicitly requested, use memory databases
+	}
+}
+
+func setVoteJournalDir(ctx *cli.Context, cfg *node.Config) {
+	if ctx.GlobalIsSet(VoteJournalDirFlag.Name) {
+		cfg.VoteJournalDir = ctx.GlobalString(VoteJournalDirFlag.Name)
+	} else {
+		cfg.VoteJournalDir = "voteJournal"
+	}
+}
+
+func setBLSWalletDir(ctx *cli.Context, cfg *node.Config) {
+	if ctx.GlobalIsSet(BLSWalletDirFlag.Name) {
+		cfg.BLSWalletDir = ctx.GlobalString(BLSWalletDirFlag.Name)
+	} else {
+		cfg.BLSWalletDir = "bls/wallet"
 	}
 }
 
