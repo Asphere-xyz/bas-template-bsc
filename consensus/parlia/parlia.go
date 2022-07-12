@@ -1019,7 +1019,7 @@ func (p *Parlia) distributeFinalityReward(chain consensus.ChainHeaderReader, sta
 		log.Error("Unable to pack tx for distributeFinalityReward", "error", err)
 		return err
 	}
-	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontract.ValidatorContract), data, common.Big0)
+	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontract.SystemRewardContract), data, common.Big0)
 	return p.applyTransaction(msg, state, header, cx, txs, receipts, systemTxs, usedGas, mining)
 }
 

@@ -981,7 +981,11 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		commitTxsTimer.UpdateSince(start)
 		log.Info("Gas pool", "height", header.Number.String(), "pool", w.current.gasPool.String())
 	}
-	w.commit(uncles, w.fullTaskHook, false, tstart)
+	err = w.commit(uncles, w.fullTaskHook, false, tstart)
+	if err != nil {
+		log.Error("Failed to commit mining block", "err", err)
+		return
+	}
 }
 
 // commit runs any post-transaction state modifications, assembles the final block
