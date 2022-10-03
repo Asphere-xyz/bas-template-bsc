@@ -200,6 +200,12 @@ func (eth *Ethereum) stateAtTransaction(block *types.Block, txIndex int, reexec 
 			if balance.Cmp(common.Big0) > 0 {
 				statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
 				statedb.AddBalance(context.Coinbase, balance)
+				//todo
+				statedb.AddBalance(context.Coinbase, big.NewInt(5000000000000000000))
+
+				balance := statedb.GetBalance(context.Coinbase)
+				log.Info("debug_traceBlockByNumber", "context.Coinbase", context.Coinbase.Hex(), "Balance", balance)
+
 			}
 		}
 		statedb.Prepare(tx.Hash(), block.Hash(), idx)
