@@ -536,15 +536,16 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 		if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
 			if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
 				balance := statedb.GetBalance(consensus.SystemAddress)
-				//if balance.Cmp(common.Big0) > 0 {
-				statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
-				statedb.AddBalance(vmctx.Coinbase, balance)
-				//todo
-				statedb.AddBalance(vmctx.Coinbase, big.NewInt(5000000000000000000))
-				balance = statedb.GetBalance(vmctx.Coinbase)
-				log.Info("debug_traceBlockByNumber", "context.Coinbase", vmctx.Coinbase.Hex(), "Balance", balance)
-				//}
+				if balance.Cmp(common.Big0) > 0 {
+					statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
+					statedb.AddBalance(vmctx.Coinbase, balance)
+				}
+				blockRewards := posa.BlockRewards(block.Header().Number)
+				if blockRewards != nil {
+					statedb.AddBalance(vmctx.Coinbase, blockRewards)
+				}
 			}
+
 		}
 
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
@@ -648,15 +649,14 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 		if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
 			if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
 				balance := statedb.GetBalance(consensus.SystemAddress)
-				//if balance.Cmp(common.Big0) > 0 {
-				statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
-				statedb.AddBalance(block.Header().Coinbase, balance)
-				//todo
-				statedb.AddBalance(block.Header().Coinbase, big.NewInt(5000000000000000000))
-
-				balance = statedb.GetBalance(block.Header().Coinbase)
-				log.Info("debug_traceBlockByNumber", "context.Coinbase", block.Header().Coinbase.Hex(), "Balance", balance)
-				//	}
+				if balance.Cmp(common.Big0) > 0 {
+					statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
+					statedb.AddBalance(block.Header().Coinbase, balance)
+				}
+				blockRewards := posa.BlockRewards(block.Header().Number)
+				if blockRewards != nil {
+					statedb.AddBalance(block.Header().Coinbase, blockRewards)
+				}
 			}
 		}
 
@@ -777,14 +777,14 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 		if posa, ok := api.backend.Engine().(consensus.PoSA); ok {
 			if isSystem, _ := posa.IsSystemTransaction(tx, block.Header()); isSystem {
 				balance := statedb.GetBalance(consensus.SystemAddress)
-				//	if balance.Cmp(common.Big0) > 0 {
-				statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
-				statedb.AddBalance(vmctx.Coinbase, balance)
-				//todo
-				statedb.AddBalance(vmctx.Coinbase, big.NewInt(5000000000000000000))
-				balance = statedb.GetBalance(vmctx.Coinbase)
-				log.Info("debug_traceBlockByNumber", "context.Coinbase", vmctx.Coinbase.Hex(), "Balance", balance)
-				//	}
+				if balance.Cmp(common.Big0) > 0 {
+					statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
+					statedb.AddBalance(vmctx.Coinbase, balance)
+				}
+				blockRewards := posa.BlockRewards(block.Header().Number)
+				if blockRewards != nil {
+					statedb.AddBalance(vmctx.Coinbase, blockRewards)
+				}
 			}
 		}
 		statedb.Prepare(tx.Hash(), block.Hash(), i)
@@ -947,15 +947,15 @@ func (api *API) traceTx(ctx context.Context, message core.Message, txctx *Contex
 	if posa, ok := api.backend.Engine().(consensus.PoSA); ok && message.From() == vmctx.Coinbase &&
 		posa.IsSystemContract(message.To()) && message.GasPrice().Cmp(big.NewInt(0)) == 0 {
 		balance := statedb.GetBalance(consensus.SystemAddress)
-		//	if balance.Cmp(common.Big0) > 0 {
-		statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
-		statedb.AddBalance(vmctx.Coinbase, balance)
-		//todo
-		statedb.AddBalance(vmctx.Coinbase, big.NewInt(5000000000000000000))
-		balance = statedb.GetBalance(vmctx.Coinbase)
-		log.Info("debug_traceBlockByNumber", "vmctx.Coinbase", vmctx.Coinbase.Hex(), "Balance", balance)
+		if balance.Cmp(common.Big0) > 0 {
+			statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
+			statedb.AddBalance(vmctx.Coinbase, balance)
+		}
+		blockRewards := posa.BlockRewards(vmctx.BlockNumber)
+		if blockRewards != nil {
+			statedb.AddBalance(vmctx.Coinbase, blockRewards)
+		}
 
-		//	}
 	}
 
 	// Call Prepare to clear out the statedb access list

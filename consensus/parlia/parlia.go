@@ -1051,6 +1051,15 @@ func (p *Parlia) getCurrentValidators(blockHash common.Hash) ([]common.Address, 
 	}
 	return valz, nil
 }
+func (p *Parlia) BlockRewards(blockNumber *big.Int) *big.Int {
+	if rules := p.chainConfig.Rules(blockNumber); rules.HasBlockRewards {
+		blockRewards := p.chainConfig.Parlia.BlockRewards
+		if blockRewards != nil && blockRewards.Cmp(common.Big0) > 0 {
+			return blockRewards
+		}
+	}
+	return nil
+}
 
 // slash spoiled validators
 func (p *Parlia) distributeIncoming(val common.Address, state *state.StateDB, header *types.Header, chain core.ChainContext,
