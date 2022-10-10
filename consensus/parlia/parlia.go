@@ -1066,35 +1066,37 @@ func (p *Parlia) distributeIncoming(val common.Address, state *state.StateDB, he
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
 	coinbase := header.Coinbase
 	balance := state.GetBalance(consensus.SystemAddress)
-	if balance.Cmp(common.Big0) <= 0 {
-		return nil
-	}
 	state.SetBalance(consensus.SystemAddress, big.NewInt(0))
 	state.AddBalance(coinbase, balance)
-
+	rewards := big.NewInt(0).Abs(balance)
 	if rules := p.chainConfig.Rules(header.Number); rules.HasBlockRewards {
 		blockRewards := p.chainConfig.Parlia.BlockRewards
 		// if we have enabled block rewards and rewards are greater than 0 then
 		if blockRewards != nil && blockRewards.Cmp(common.Big0) > 0 {
 			state.AddBalance(coinbase, blockRewards)
+			rewards = rewards.Add(rewards, blockRewards)
 		}
 	}
-
-	doDistributeSysReward := state.GetBalance(common.HexToAddress(systemcontract.SystemRewardContract)).Cmp(maxSystemBalance) < 0
-	if doDistributeSysReward {
-		var rewards = new(big.Int)
-		rewards = rewards.Rsh(balance, systemRewardPercent)
-		if rewards.Cmp(common.Big0) > 0 {
-			err := p.distributeToSystem(rewards, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
-			if err != nil {
-				return err
+	if rewards.Cmp(common.Big0) <= 0 {
+		return nil
+	}
+	if balance.Cmp(common.Big0) > 0 {
+		doDistributeSysReward := state.GetBalance(common.HexToAddress(systemcontract.SystemRewardContract)).Cmp(maxSystemBalance) < 0
+		if doDistributeSysReward {
+			var SysRewards = new(big.Int)
+			SysRewards = SysRewards.Rsh(balance, systemRewardPercent)
+			if SysRewards.Cmp(common.Big0) > 0 {
+				err := p.distributeToSystem(SysRewards, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
+				if err != nil {
+					return err
+				}
+				log.Trace("distribute to system reward pool", "block hash", header.Hash(), "amount", SysRewards)
+				rewards = rewards.Sub(rewards, SysRewards)
 			}
-			log.Trace("distribute to system reward pool", "block hash", header.Hash(), "amount", rewards)
-			balance = balance.Sub(balance, rewards)
 		}
 	}
-	log.Trace("distribute to validator contract", "block hash", header.Hash(), "amount", balance)
-	return p.distributeToValidator(balance, val, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
+	log.Trace("distribute to validator contract", "block hash", header.Hash(), "amount", rewards)
+	return p.distributeToValidator(rewards, val, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 }
 
 // slash spoiled validators
