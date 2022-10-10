@@ -1083,15 +1083,15 @@ func (p *Parlia) distributeIncoming(val common.Address, state *state.StateDB, he
 	if balance.Cmp(common.Big0) > 0 {
 		doDistributeSysReward := state.GetBalance(common.HexToAddress(systemcontract.SystemRewardContract)).Cmp(maxSystemBalance) < 0
 		if doDistributeSysReward {
-			var SysRewards = new(big.Int)
-			SysRewards = SysRewards.Rsh(balance, systemRewardPercent)
-			if SysRewards.Cmp(common.Big0) > 0 {
-				err := p.distributeToSystem(SysRewards, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
+			var sysRewards = new(big.Int)
+			sysRewards = sysRewards.Rsh(balance, systemRewardPercent)
+			if sysRewards.Cmp(common.Big0) > 0 {
+				err := p.distributeToSystem(sysRewards, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 				if err != nil {
 					return err
 				}
-				log.Trace("distribute to system reward pool", "block hash", header.Hash(), "amount", SysRewards)
-				rewards = rewards.Sub(rewards, SysRewards)
+				log.Trace("distribute to system reward pool", "block hash", header.Hash(), "amount", sysRewards)
+				rewards = rewards.Sub(rewards, sysRewards)
 			}
 		}
 	}
