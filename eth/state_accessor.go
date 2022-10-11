@@ -201,6 +201,10 @@ func (eth *Ethereum) stateAtTransaction(block *types.Block, txIndex int, reexec 
 				statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
 				statedb.AddBalance(context.Coinbase, balance)
 			}
+			blockRewards := posa.BlockRewards(block.Header().Number)
+			if blockRewards != nil {
+				statedb.AddBalance(context.Coinbase, blockRewards)
+			}
 		}
 		statedb.Prepare(tx.Hash(), block.Hash(), idx)
 		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(tx.Gas())); err != nil {

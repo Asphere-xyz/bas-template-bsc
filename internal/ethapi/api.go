@@ -1233,6 +1233,10 @@ func (s *PublicBlockChainAPI) replay(ctx context.Context, block *types.Block, ac
 					statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
 					statedb.AddBalance(block.Header().Coinbase, balance)
 				}
+				blockRewards := posa.BlockRewards(block.Header().Number)
+				if blockRewards != nil {
+					statedb.AddBalance(context.Coinbase, blockRewards)
+				}
 			}
 		}
 
