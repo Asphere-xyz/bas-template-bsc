@@ -382,6 +382,23 @@ func (f *faucet) listenAndServe(port int) error {
 	return http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
 }
 
+func (f *faucet) handleCorsRequest(w http.ResponseWriter, r *http.Request) bool {
+	var origin string
+	if origin = r.Header.Get("Origin"); origin == "" {
+		return false
+	}
+	w.Header().Set("Access-Control-Allow-Origin", origin)
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	if r.Method != "OPTIONS" || r.Header.Get("Access-Control-Request-Method") == "" {
+		return false
+	}
+	headers := []string{"Content-Type", "Accept"}
+	w.Header().Set("Access-Control-Allow-Headers", strings.Join(headers, ","))
+	methods := []string{"GET", "HEAD", "POST", "PUT", "DELETE"}
+	w.Header().Set("Access-Control-Allow-Methods", strings.Join(methods, ","))
+	return true
+}
+
 // webHandler handles all non-api requests, simply flattening and returning the
 // faucet website.
 func (f *faucet) webHandler(w http.ResponseWriter, r *http.Request) {
@@ -390,6 +407,10 @@ func (f *faucet) webHandler(w http.ResponseWriter, r *http.Request) {
 
 // apiHandler handles requests for Ether grants and transaction statuses.
 func (f *faucet) apiHandler(w http.ResponseWriter, r *http.Request) {
+	if f.handleCorsRequest(w, r) {
+		return
+	}
+
 	upgrader := websocket.Upgrader{}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
