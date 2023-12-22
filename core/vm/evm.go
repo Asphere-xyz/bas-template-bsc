@@ -17,7 +17,6 @@
 package vm
 
 import (
-	"errors"
 	"math/big"
 	"sync"
 	"sync/atomic"

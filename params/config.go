@@ -122,7 +122,6 @@ var (
 		DeployerProxyBlock:            big.NewInt(0),
 		TerminalTotalDifficultyPassed: true,
 		IsDevMode:                     true,
-		nil,
 	}
 
 	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
@@ -266,20 +265,20 @@ type ChainConfig struct {
 	// even without having seen the TTD locally (safer long term).
 	TerminalTotalDifficultyPassed bool `json:"terminalTotalDifficultyPassed,omitempty"`
 
-	RamanujanBlock  *big.Int `json:"ramanujanBlock,omitempty" toml:",omitempty"`  // ramanujanBlock switch block (nil = no fork, 0 = already activated)
-	NielsBlock      *big.Int `json:"nielsBlock,omitempty" toml:",omitempty"`      // nielsBlock switch block (nil = no fork, 0 = already activated)
-	MirrorSyncBlock *big.Int `json:"mirrorSyncBlock,omitempty" toml:",omitempty"` // mirrorSyncBlock switch block (nil = no fork, 0 = already activated)
-	BrunoBlock      *big.Int `json:"brunoBlock,omitempty" toml:",omitempty"`      // brunoBlock switch block (nil = no fork, 0 = already activated)
+	RamanujanBlock    *big.Int `json:"ramanujanBlock,omitempty" toml:",omitempty"`  // ramanujanBlock switch block (nil = no fork, 0 = already activated)
+	NielsBlock        *big.Int `json:"nielsBlock,omitempty" toml:",omitempty"`      // nielsBlock switch block (nil = no fork, 0 = already activated)
+	MirrorSyncBlock   *big.Int `json:"mirrorSyncBlock,omitempty" toml:",omitempty"` // mirrorSyncBlock switch block (nil = no fork, 0 = already activated)
+	BrunoBlock        *big.Int `json:"brunoBlock,omitempty" toml:",omitempty"`      // brunoBlock switch block (nil = no fork, 0 = already activated)
 	BlockRewardsBlock *big.Int `json:"blockRewardsBlock,omitempty" toml:",omitempty"`
-	EulerBlock      *big.Int `json:"eulerBlock,omitempty" toml:",omitempty"`      // eulerBlock switch block (nil = no fork, 0 = already activated)
-	GibbsBlock      *big.Int `json:"gibbsBlock,omitempty" toml:",omitempty"`      // gibbsBlock switch block (nil = no fork, 0 = already activated)
-	NanoBlock       *big.Int `json:"nanoBlock,omitempty" toml:",omitempty"`       // nanoBlock switch block (nil = no fork, 0 = already activated)
-	MoranBlock      *big.Int `json:"moranBlock,omitempty" toml:",omitempty"`      // moranBlock switch block (nil = no fork, 0 = already activated)
-	PlanckBlock     *big.Int `json:"planckBlock,omitempty" toml:",omitempty"`     // planckBlock switch block (nil = no fork, 0 = already activated)
-	LubanBlock      *big.Int `json:"lubanBlock,omitempty" toml:",omitempty"`      // lubanBlock switch block (nil = no fork, 0 = already activated)
-	PlatoBlock      *big.Int `json:"platoBlock,omitempty" toml:",omitempty"`      // platoBlock switch block (nil = no fork, 0 = already activated)
-	HertzBlock      *big.Int `json:"hertzBlock,omitempty" toml:",omitempty"`      // hertzBlock switch block (nil = no fork, 0 = already activated)
-	HertzfixBlock   *big.Int `json:"hertzfixBlock,omitempty" toml:",omitempty"`   // hertzfixBlock switch block (nil = no fork, 0 = already activated)
+	EulerBlock        *big.Int `json:"eulerBlock,omitempty" toml:",omitempty"`    // eulerBlock switch block (nil = no fork, 0 = already activated)
+	GibbsBlock        *big.Int `json:"gibbsBlock,omitempty" toml:",omitempty"`    // gibbsBlock switch block (nil = no fork, 0 = already activated)
+	NanoBlock         *big.Int `json:"nanoBlock,omitempty" toml:",omitempty"`     // nanoBlock switch block (nil = no fork, 0 = already activated)
+	MoranBlock        *big.Int `json:"moranBlock,omitempty" toml:",omitempty"`    // moranBlock switch block (nil = no fork, 0 = already activated)
+	PlanckBlock       *big.Int `json:"planckBlock,omitempty" toml:",omitempty"`   // planckBlock switch block (nil = no fork, 0 = already activated)
+	LubanBlock        *big.Int `json:"lubanBlock,omitempty" toml:",omitempty"`    // lubanBlock switch block (nil = no fork, 0 = already activated)
+	PlatoBlock        *big.Int `json:"platoBlock,omitempty" toml:",omitempty"`    // platoBlock switch block (nil = no fork, 0 = already activated)
+	HertzBlock        *big.Int `json:"hertzBlock,omitempty" toml:",omitempty"`    // hertzBlock switch block (nil = no fork, 0 = already activated)
+	HertzfixBlock     *big.Int `json:"hertzfixBlock,omitempty" toml:",omitempty"` // hertzfixBlock switch block (nil = no fork, 0 = already activated)
 	// Various consensus engines
 	Clique    *CliqueConfig `json:"clique,omitempty" toml:",omitempty"`
 	Parlia    *ParliaConfig `json:"parlia,omitempty" toml:",omitempty"`
@@ -612,7 +611,7 @@ func (c *ChainConfig) HasDeployerProxy(num *big.Int) bool {
 }
 
 func (c *ChainConfig) IsBlockRewardsBlock(num *big.Int) bool {
-	return isForked(c.BlockRewardsBlock, num)
+	return isBlockForked(c.BlockRewardsBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -962,8 +961,8 @@ type Rules struct {
 	IsShanghai, IsKepler, IsCancun, IsPrague                bool
 	IsVerkle                                                bool
 	IsCatalyst                                              bool
-	HasRuntimeUpgrade, HasDeployerProxy bool
-	HasBlockRewards      bool
+	HasRuntimeUpgrade, HasDeployerProxy                     bool
+	HasBlockRewards                                         bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -973,16 +972,16 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 		chainID = new(big.Int)
 	}
 	return Rules{
-		ChainID:              new(big.Int).Set(chainID),
-		IsHomestead:          c.IsHomestead(num),
-		IsEIP150:             c.IsEIP150(num),
-		IsEIP155:             c.IsEIP155(num),
-		IsEIP158:             c.IsEIP158(num),
-		IsByzantium:          c.IsByzantium(num),
-		IsConstantinople:     c.IsConstantinople(num),
-		IsPetersburg:         c.IsPetersburg(num),
-		IsIstanbul:           c.IsIstanbul(num),
-		IsBerlin:             c.IsBerlin(num),
+		ChainID:           new(big.Int).Set(chainID),
+		IsHomestead:       c.IsHomestead(num),
+		IsEIP150:          c.IsEIP150(num),
+		IsEIP155:          c.IsEIP155(num),
+		IsEIP158:          c.IsEIP158(num),
+		IsByzantium:       c.IsByzantium(num),
+		IsConstantinople:  c.IsConstantinople(num),
+		IsPetersburg:      c.IsPetersburg(num),
+		IsIstanbul:        c.IsIstanbul(num),
+		IsBerlin:          c.IsBerlin(num),
 		IsLondon:          c.IsLondon(num),
 		IsMerge:           isMerge,
 		IsNano:            c.IsNano(num),
@@ -997,8 +996,8 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 		IsCancun:          c.IsCancun(num, timestamp),
 		IsPrague:          c.IsPrague(num, timestamp),
 		IsVerkle:          c.IsVerkle(num, timestamp),
-		HasRuntimeUpgrade:    c.HasRuntimeUpgrade(num),
-		HasDeployerProxy:     c.HasDeployerProxy(num),
-		HasBlockRewards:      c.IsBlockRewardsBlock(num),
+		HasRuntimeUpgrade: c.HasRuntimeUpgrade(num),
+		HasDeployerProxy:  c.HasDeployerProxy(num),
+		HasBlockRewards:   c.IsBlockRewardsBlock(num),
 	}
 }

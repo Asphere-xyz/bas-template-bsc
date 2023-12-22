@@ -546,7 +546,7 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 					statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
 					statedb.AddBalance(vmctx.Coinbase, balance)
 				}
-				blockRewards := posa.BlockRewards(block.Header().Number)
+				blockRewards := posa.BlockRewards(block.Header().Number, false, block.Time())
 				if blockRewards != nil {
 					statedb.AddBalance(vmctx.Coinbase, blockRewards)
 				}
@@ -709,7 +709,7 @@ txloop:
 					statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
 					statedb.AddBalance(block.Header().Coinbase, balance)
 				}
-				blockRewards := posa.BlockRewards(block.Header().Number)
+				blockRewards := posa.BlockRewards(block.Header().Number, false, block.Time())
 				if blockRewards != nil {
 					statedb.AddBalance(block.Header().Coinbase, blockRewards)
 				}
@@ -830,7 +830,7 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 					statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
 					statedb.AddBalance(vmctx.Coinbase, balance)
 				}
-				blockRewards := posa.BlockRewards(block.Header().Number)
+				blockRewards := posa.BlockRewards(block.Header().Number, false, block.Time())
 				if blockRewards != nil {
 					statedb.AddBalance(vmctx.Coinbase, blockRewards)
 				}
@@ -1017,7 +1017,7 @@ func (api *API) traceTx(ctx context.Context, message *core.Message, txctx *Conte
 			statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
 			statedb.AddBalance(vmctx.Coinbase, balance)
 		}
-		blockRewards := posa.BlockRewards(vmctx.BlockNumber)
+		blockRewards := posa.BlockRewards(vmctx.BlockNumber, vmctx.Random != nil, vmctx.Time)
 		if blockRewards != nil {
 			statedb.AddBalance(vmctx.Coinbase, blockRewards)
 		}

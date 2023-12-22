@@ -460,7 +460,7 @@ func unlockAccounts(ctx *cli.Context, stack *node.Node) {
 	// If insecure account unlocking is not allowed if node's APIs are exposed to external.
 	// Print warning log to user and skip unlocking.
 	isDevMode := false
-	if ctx.GlobalIsSet(utils.NetworkIdFlag.Name) && ctx.GlobalUint64(utils.NetworkIdFlag.Name) == 1337 {
+	if ctx.IsSet(utils.NetworkIdFlag.Name) && ctx.Uint64(utils.NetworkIdFlag.Name) == 1337 {
 		isDevMode = true
 	}
 	if !stack.Config().InsecureUnlockAllowed && stack.Config().ExtRPCEnabled() && !isDevMode {

@@ -261,7 +261,7 @@ func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block,
 				statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
 				statedb.AddBalance(context.Coinbase, balance)
 			}
-			blockRewards := posa.BlockRewards(block.Header().Number)
+			blockRewards := posa.BlockRewards(block.Header().Number, false, block.Time())
 			if blockRewards != nil {
 				statedb.AddBalance(context.Coinbase, blockRewards)
 			}

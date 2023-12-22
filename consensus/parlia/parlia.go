@@ -1561,8 +1561,8 @@ func (p *Parlia) getCurrentValidators(blockHash common.Hash, blockNum *big.Int) 
 	}
 	return valSet, voteAddrmap, nil
 }
-func (p *Parlia) BlockRewards(blockNumber *big.Int) *big.Int {
-	if rules := p.chainConfig.Rules(blockNumber); rules.HasBlockRewards {
+func (p *Parlia) BlockRewards(blockNumber *big.Int, isMerge bool, timestamp uint64) *big.Int {
+	if rules := p.chainConfig.Rules(blockNumber, isMerge, timestamp); rules.HasBlockRewards {
 		blockRewards := p.chainConfig.Parlia.BlockRewards
 		if blockRewards != nil && blockRewards.Cmp(common.Big0) > 0 {
 			return blockRewards
@@ -1579,7 +1579,7 @@ func (p *Parlia) distributeIncoming(val common.Address, state *state.StateDB, he
 	state.SetBalance(consensus.SystemAddress, big.NewInt(0))
 	state.AddBalance(coinbase, balance)
 	rewards := big.NewInt(0).Abs(balance)
-	if rules := p.chainConfig.Rules(header.Number); rules.HasBlockRewards {
+	if rules := p.chainConfig.Rules(header.Number, false, header.Time); rules.HasBlockRewards {
 		blockRewards := p.chainConfig.Parlia.BlockRewards
 		// if we have enabled block rewards and rewards are greater than 0 then
 		if blockRewards != nil && blockRewards.Cmp(common.Big0) > 0 {
@@ -1592,7 +1592,7 @@ func (p *Parlia) distributeIncoming(val common.Address, state *state.StateDB, he
 	}
 	if balance.Cmp(common.Big0) > 0 {
 		doDistributeSysReward := !p.chainConfig.IsKepler(header.Number, header.Time) &&
-		state.GetBalance(common.HexToAddress(systemcontract.SystemRewardContract)).Cmp(maxSystemBalance) < 0
+			state.GetBalance(common.HexToAddress(systemcontract.SystemRewardContract)).Cmp(maxSystemBalance) < 0
 		if doDistributeSysReward {
 			var sysRewards = new(big.Int)
 			sysRewards = sysRewards.Rsh(balance, systemRewardPercent)

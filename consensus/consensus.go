@@ -155,5 +155,5 @@ type PoSA interface {
 	VerifyVote(chain ChainHeaderReader, vote *types.VoteEnvelope) error
 	IsActiveValidatorAt(chain ChainHeaderReader, header *types.Header, checkVoteKeyFn func(bLSPublicKey *types.BLSPublicKey) bool) bool
 
-	BlockRewards(blockNumber *big.Int) *big.Int
+	BlockRewards(blockNumber *big.Int, isMerge bool, timestamp uint64) *big.Int
 }
