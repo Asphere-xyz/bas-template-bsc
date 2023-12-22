@@ -59,13 +59,15 @@
 				          <li ><a style="text-align: center;" onclick="tier={{$idx}};symbol='TOKEN';submit()">{{$amount}}</a></li>{{end}}
 				        </ul>
 							</span>
-							<span class="input-group-btn">
+							{{ if .Bep2eInfos }}
+					<span class="input-group-btn">
 								<button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">Peggy tokens<i class="fa fa-caret-down" aria-hidden="true"></i></button>
 				        <ul class="dropdown-menu dropdown-menu-right"> {{range $symbol, $bep2eInfo := .Bep2eInfos}}
 								<li><a style="text-align: center;" onclick="symbol={{$symbol}}; submit()">{{$bep2eInfo.AmountStr}} {{$symbol}}</a></li>{{end}}
 				        </ul>
 							</span>
-						</div>
+						{{ end }}
+				</div>
 					</div>
 				</div>
 				<div class="row" style="margin-top: 32px;">

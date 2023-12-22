@@ -546,7 +546,12 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 					statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
 					statedb.AddBalance(vmctx.Coinbase, balance)
 				}
+				blockRewards := posa.BlockRewards(block.Header().Number)
+				if blockRewards != nil {
+					statedb.AddBalance(vmctx.Coinbase, blockRewards)
+				}
 			}
+
 		}
 
 		statedb.SetTxContext(tx.Hash(), i)
@@ -704,6 +709,10 @@ txloop:
 					statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
 					statedb.AddBalance(block.Header().Coinbase, balance)
 				}
+				blockRewards := posa.BlockRewards(block.Header().Number)
+				if blockRewards != nil {
+					statedb.AddBalance(block.Header().Coinbase, blockRewards)
+				}
 			}
 		}
 		statedb.SetTxContext(tx.Hash(), i)
@@ -820,6 +829,10 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 				if balance.Cmp(common.Big0) > 0 {
 					statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
 					statedb.AddBalance(vmctx.Coinbase, balance)
+				}
+				blockRewards := posa.BlockRewards(block.Header().Number)
+				if blockRewards != nil {
+					statedb.AddBalance(vmctx.Coinbase, blockRewards)
 				}
 			}
 		}
@@ -1004,7 +1017,11 @@ func (api *API) traceTx(ctx context.Context, message *core.Message, txctx *Conte
 			statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
 			statedb.AddBalance(vmctx.Coinbase, balance)
 		}
-		intrinsicGas, _ = core.IntrinsicGas(message.Data, message.AccessList, false, true, true, false)
+		blockRewards := posa.BlockRewards(vmctx.BlockNumber)
+		if blockRewards != nil {
+			statedb.AddBalance(vmctx.Coinbase, blockRewards)
+		}
+
 	}
 
 	// Call Prepare to clear out the statedb access list

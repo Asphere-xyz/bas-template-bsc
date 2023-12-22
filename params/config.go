@@ -122,6 +122,7 @@ var (
 		DeployerProxyBlock:            big.NewInt(0),
 		TerminalTotalDifficultyPassed: true,
 		IsDevMode:                     true,
+		nil,
 	}
 
 	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
@@ -269,6 +270,7 @@ type ChainConfig struct {
 	NielsBlock      *big.Int `json:"nielsBlock,omitempty" toml:",omitempty"`      // nielsBlock switch block (nil = no fork, 0 = already activated)
 	MirrorSyncBlock *big.Int `json:"mirrorSyncBlock,omitempty" toml:",omitempty"` // mirrorSyncBlock switch block (nil = no fork, 0 = already activated)
 	BrunoBlock      *big.Int `json:"brunoBlock,omitempty" toml:",omitempty"`      // brunoBlock switch block (nil = no fork, 0 = already activated)
+	BlockRewardsBlock *big.Int `json:"blockRewardsBlock,omitempty" toml:",omitempty"`
 	EulerBlock      *big.Int `json:"eulerBlock,omitempty" toml:",omitempty"`      // eulerBlock switch block (nil = no fork, 0 = already activated)
 	GibbsBlock      *big.Int `json:"gibbsBlock,omitempty" toml:",omitempty"`      // gibbsBlock switch block (nil = no fork, 0 = already activated)
 	NanoBlock       *big.Int `json:"nanoBlock,omitempty" toml:",omitempty"`       // nanoBlock switch block (nil = no fork, 0 = already activated)
@@ -297,8 +299,9 @@ func (c *CliqueConfig) String() string {
 
 // ParliaConfig is the consensus engine configs for proof-of-staked-authority based sealing.
 type ParliaConfig struct {
-	Period uint64 `json:"period"` // Number of seconds between blocks to enforce
-	Epoch  uint64 `json:"epoch"`  // Epoch length to update validatorSet
+	Period       uint64   `json:"period"`       // Number of seconds between blocks to enforce
+	Epoch        uint64   `json:"epoch"`        // Epoch length to update validatorSet
+	BlockRewards *big.Int `json:"blockRewards"` // Block rewards to be paid for each produced block
 }
 
 // String implements the stringer interface, returning the consensus engine details.
@@ -606,6 +609,10 @@ func (c *ChainConfig) HasRuntimeUpgrade(num *big.Int) bool {
 
 func (c *ChainConfig) HasDeployerProxy(num *big.Int) bool {
 	return isBlockForked(c.DeployerProxyBlock, num)
+}
+
+func (c *ChainConfig) IsBlockRewardsBlock(num *big.Int) bool {
+	return isForked(c.BlockRewardsBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -955,7 +962,8 @@ type Rules struct {
 	IsShanghai, IsKepler, IsCancun, IsPrague                bool
 	IsVerkle                                                bool
 	IsCatalyst                                              bool
-	HasRuntimeUpgrade, HasDeployerProxy                     bool
+	HasRuntimeUpgrade, HasDeployerProxy bool
+	HasBlockRewards      bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -965,16 +973,16 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 		chainID = new(big.Int)
 	}
 	return Rules{
-		ChainID:           new(big.Int).Set(chainID),
-		IsHomestead:       c.IsHomestead(num),
-		IsEIP150:          c.IsEIP150(num),
-		IsEIP155:          c.IsEIP155(num),
-		IsEIP158:          c.IsEIP158(num),
-		IsByzantium:       c.IsByzantium(num),
-		IsConstantinople:  c.IsConstantinople(num),
-		IsPetersburg:      c.IsPetersburg(num),
-		IsIstanbul:        c.IsIstanbul(num),
-		IsBerlin:          c.IsBerlin(num),
+		ChainID:              new(big.Int).Set(chainID),
+		IsHomestead:          c.IsHomestead(num),
+		IsEIP150:             c.IsEIP150(num),
+		IsEIP155:             c.IsEIP155(num),
+		IsEIP158:             c.IsEIP158(num),
+		IsByzantium:          c.IsByzantium(num),
+		IsConstantinople:     c.IsConstantinople(num),
+		IsPetersburg:         c.IsPetersburg(num),
+		IsIstanbul:           c.IsIstanbul(num),
+		IsBerlin:             c.IsBerlin(num),
 		IsLondon:          c.IsLondon(num),
 		IsMerge:           isMerge,
 		IsNano:            c.IsNano(num),
@@ -989,7 +997,8 @@ func (c *ChainConfig) Rules(num *big.Int, isMerge bool, timestamp uint64) Rules 
 		IsCancun:          c.IsCancun(num, timestamp),
 		IsPrague:          c.IsPrague(num, timestamp),
 		IsVerkle:          c.IsVerkle(num, timestamp),
-		HasRuntimeUpgrade: c.HasRuntimeUpgrade(num),
-		HasDeployerProxy:  c.HasDeployerProxy(num),
+		HasRuntimeUpgrade:    c.HasRuntimeUpgrade(num),
+		HasDeployerProxy:     c.HasDeployerProxy(num),
+		HasBlockRewards:      c.IsBlockRewardsBlock(num),
 	}
 }
