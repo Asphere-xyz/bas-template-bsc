@@ -65,7 +65,7 @@ func testPingReplace(t *testing.T, newNodeIsResponding, lastInBucketIsResponding
 	// its bucket if it is unresponsive. Revalidate again to ensure that
 	transport.dead[last.ID()] = !lastInBucketIsResponding
 	transport.dead[pingSender.ID()] = !newNodeIsResponding
-	tab.addSeenNode(pingSender)
+	tab.addSeenNodeSync(pingSender)
 	tab.doRevalidate(make(chan struct{}, 1))
 	tab.doRevalidate(make(chan struct{}, 1))
 
@@ -148,7 +148,7 @@ func TestTable_IPLimit(t *testing.T) {
 
 	for i := 0; i < tableIPLimit+1; i++ {
 		n := nodeAtDistance(tab.self().ID(), i, net.IP{172, 0, 1, byte(i)})
-		tab.addSeenNode(n)
+		tab.addSeenNodeSync(n)
 	}
 	if tab.len() > tableIPLimit {
 		t.Errorf("too many nodes in table")
@@ -247,41 +247,6 @@ func TestTable_findnodeByID(t *testing.T) {
 	}
 }
 
-func TestTable_ReadRandomNodesGetAll(t *testing.T) {
-	cfg := &quick.Config{
-		MaxCount: 200,
-		Rand:     rand.New(rand.NewSource(time.Now().Unix())),
-		Values: func(args []reflect.Value, rand *rand.Rand) {
-			args[0] = reflect.ValueOf(make([]*enode.Node, rand.Intn(1000)))
-		},
-	}
-	test := func(buf []*enode.Node) bool {
-		transport := newPingRecorder()
-		tab, db := newTestTable(transport)
-		defer db.Close()
-		defer tab.close()
-		<-tab.initDone
-
-		for i := 0; i < len(buf); i++ {
-			ld := cfg.Rand.Intn(len(tab.buckets))
-			fillTable(tab, []*node{nodeAtDistance(tab.self().ID(), ld, intIP(ld))})
-		}
-		gotN := tab.ReadRandomNodes(buf)
-		if gotN != tab.len() {
-			t.Errorf("wrong number of nodes, got %d, want %d", gotN, tab.len())
-			return false
-		}
-		if hasDuplicates(wrapNodes(buf[:gotN])) {
-			t.Errorf("result contains duplicates")
-			return false
-		}
-		return true
-	}
-	if err := quick.Check(test, cfg); err != nil {
-		t.Error(err)
-	}
-}
-
 type closeTest struct {
 	Self   enode.ID
 	Target enode.ID
@@ -314,8 +279,8 @@ func TestTable_addVerifiedNode(t *testing.T) {
 	// Insert two nodes.
 	n1 := nodeAtDistance(tab.self().ID(), 256, net.IP{88, 77, 66, 1})
 	n2 := nodeAtDistance(tab.self().ID(), 256, net.IP{88, 77, 66, 2})
-	tab.addSeenNode(n1)
-	tab.addSeenNode(n2)
+	tab.addSeenNodeSync(n1)
+	tab.addSeenNodeSync(n2)
 
 	// Verify bucket content:
 	bcontent := []*node{n1, n2}
@@ -327,7 +292,7 @@ func TestTable_addVerifiedNode(t *testing.T) {
 	newrec := n2.Record()
 	newrec.Set(enr.IP{99, 99, 99, 99})
 	newn2 := wrapNode(enode.SignNull(newrec, n2.ID()))
-	tab.addVerifiedNode(newn2)
+	tab.addVerifiedNodeSync(newn2)
 
 	// Check that bucket is updated correctly.
 	newBcontent := []*node{newn2, n1}
@@ -346,8 +311,8 @@ func TestTable_addSeenNode(t *testing.T) {
 	// Insert two nodes.
 	n1 := nodeAtDistance(tab.self().ID(), 256, net.IP{88, 77, 66, 1})
 	n2 := nodeAtDistance(tab.self().ID(), 256, net.IP{88, 77, 66, 2})
-	tab.addSeenNode(n1)
-	tab.addSeenNode(n2)
+	tab.addSeenNodeSync(n1)
+	tab.addSeenNodeSync(n2)
 
 	// Verify bucket content:
 	bcontent := []*node{n1, n2}
@@ -359,7 +324,7 @@ func TestTable_addSeenNode(t *testing.T) {
 	newrec := n2.Record()
 	newrec.Set(enr.IP{99, 99, 99, 99})
 	newn2 := wrapNode(enode.SignNull(newrec, n2.ID()))
-	tab.addSeenNode(newn2)
+	tab.addSeenNodeSync(newn2)
 
 	// Check that bucket content is unchanged.
 	if !reflect.DeepEqual(tab.bucket(n1.ID()).entries, bcontent) {
@@ -382,7 +347,7 @@ func TestTable_revalidateSyncRecord(t *testing.T) {
 	r.Set(enr.IP(net.IP{127, 0, 0, 1}))
 	id := enode.ID{1}
 	n1 := wrapNode(enode.SignNull(&r, id))
-	tab.addSeenNode(n1)
+	tab.addSeenNodeSync(n1)
 
 	// Update the node record.
 	r.Set(enr.WithEntry("foo", "bar"))

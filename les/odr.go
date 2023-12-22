@@ -18,11 +18,13 @@ package les
 
 import (
 	"context"
+	"math/rand"
 	"sort"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/light"
 )
@@ -118,14 +120,14 @@ func (h peerByTxHistory) Less(i, j int) bool {
 func (h peerByTxHistory) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
 
 const (
-	maxTxStatusRetry      = 3 // The maximum retrys will be made for tx status request.
+	maxTxStatusRetry      = 3 // The maximum retries will be made for tx status request.
 	maxTxStatusCandidates = 5 // The maximum les servers the tx status requests will be sent to.
 )
 
 // RetrieveTxStatus retrieves the transaction status from the LES network.
 // There is no guarantee in the LES protocol that the mined transaction will
 // be retrieved back for sure because of different reasons(the transaction
-// is unindexed, the malicous server doesn't reply it deliberately, etc).
+// is unindexed, the malicious server doesn't reply it deliberately, etc).
 // Therefore, unretrieved transactions(UNKNOWN) will receive a certain number
 // of retries, thus giving a weak guarantee.
 func (odr *LesOdr) RetrieveTxStatus(ctx context.Context, req *light.TxStatusRequest) error {
@@ -156,7 +158,7 @@ func (odr *LesOdr) RetrieveTxStatus(ctx context.Context, req *light.TxStatusRequ
 		var (
 			// Deep copy the request, so that the partial result won't be mixed.
 			req     = &TxStatusRequest{Hashes: req.Hashes}
-			id      = genReqID()
+			id      = rand.Uint64()
 			distreq = &distReq{
 				getCost: func(dp distPeer) uint64 { return req.GetCost(dp.(*serverPeer)) },
 				canSend: func(dp distPeer) bool { return canSend[dp.(*serverPeer).id] },
@@ -175,10 +177,10 @@ func (odr *LesOdr) RetrieveTxStatus(ctx context.Context, req *light.TxStatusRequ
 		// All the response is not verifiable, so always pick the first
 		// one we get.
 		for index, status := range req.Status {
-			if result[index].Status != core.TxStatusUnknown {
+			if result[index].Status != txpool.TxStatusUnknown {
 				continue
 			}
-			if status.Status == core.TxStatusUnknown {
+			if status.Status == txpool.TxStatusUnknown {
 				continue
 			}
 			result[index], missing = status, missing-1
@@ -200,7 +202,7 @@ func (odr *LesOdr) RetrieveTxStatus(ctx context.Context, req *light.TxStatusRequ
 func (odr *LesOdr) Retrieve(ctx context.Context, req light.OdrRequest) (err error) {
 	lreq := LesRequest(req)
 
-	reqID := genReqID()
+	reqID := rand.Uint64()
 	rq := &distReq{
 		getCost: func(dp distPeer) uint64 {
 			return lreq.GetCost(dp.(*serverPeer))

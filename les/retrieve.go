@@ -18,9 +18,7 @@ package les
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/binary"
-	"fmt"
+	"errors"
 	"sync"
 	"time"
 
@@ -112,7 +110,7 @@ func (rm *retrieveManager) retrieve(ctx context.Context, reqID uint64, req *dist
 	case <-ctx.Done():
 		sentReq.stop(ctx.Err())
 	case <-shutdown:
-		sentReq.stop(fmt.Errorf("client is shutting down"))
+		sentReq.stop(errors.New("client is shutting down"))
 	}
 	return sentReq.getError()
 }
@@ -153,15 +151,6 @@ func (rm *retrieveManager) sendReq(reqID uint64, req *distReq, val validatorFunc
 
 	go r.retrieveLoop()
 	return r
-}
-
-// requested reports whether the request with given reqid is sent by the retriever.
-func (rm *retrieveManager) requested(reqId uint64) bool {
-	rm.lock.RLock()
-	defer rm.lock.RUnlock()
-
-	_, ok := rm.sentReqs[reqId]
-	return ok
 }
 
 // deliver is called by the LES protocol manager to deliver reply messages to waiting requests
@@ -429,11 +418,4 @@ func (r *sentReq) stop(err error) {
 // stop function) after stopCh has been closed
 func (r *sentReq) getError() error {
 	return r.err
-}
-
-// genReqID generates a new random request ID
-func genReqID() uint64 {
-	var rnd [8]byte
-	rand.Read(rnd[:])
-	return binary.BigEndian.Uint64(rnd[:])
 }

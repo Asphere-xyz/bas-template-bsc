@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 // So we can deterministically seed different blockchains
@@ -55,8 +56,8 @@ func makeHeaderChain(parent *types.Header, n int, db ethdb.Database, seed int) [
 func newCanonical(n int) (ethdb.Database, *LightChain, error) {
 	db := rawdb.NewMemoryDatabase()
 	gspec := core.Genesis{Config: params.TestChainConfig}
-	genesis := gspec.MustCommit(db)
-	blockchain, _ := NewLightChain(&dummyOdr{db: db, indexerConfig: TestClientIndexerConfig}, gspec.Config, ethash.NewFaker(), nil)
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, trie.HashDefaults))
+	blockchain, _ := NewLightChain(&dummyOdr{db: db, indexerConfig: TestClientIndexerConfig}, gspec.Config, ethash.NewFaker())
 
 	// Create and inject the requested chain
 	if n == 0 {
@@ -64,7 +65,7 @@ func newCanonical(n int) (ethdb.Database, *LightChain, error) {
 	}
 	// Header-only chain requested
 	headers := makeHeaderChain(genesis.Header(), n, db, canonicalSeed)
-	_, err := blockchain.InsertHeaderChain(headers, 1)
+	_, err := blockchain.InsertHeaderChain(headers)
 	return db, blockchain, err
 }
 
@@ -75,8 +76,8 @@ func newTestLightChain() *LightChain {
 		Difficulty: big.NewInt(1),
 		Config:     params.TestChainConfig,
 	}
-	gspec.MustCommit(db)
-	lc, err := NewLightChain(&dummyOdr{db: db}, gspec.Config, ethash.NewFullFaker(), nil)
+	gspec.MustCommit(db, trie.NewDatabase(db, trie.HashDefaults))
+	lc, err := NewLightChain(&dummyOdr{db: db}, gspec.Config, ethash.NewFullFaker())
 	if err != nil {
 		panic(err)
 	}
@@ -99,17 +100,18 @@ func testFork(t *testing.T, LightChain *LightChain, i, n int, comparator func(td
 	}
 	// Extend the newly created chain
 	headerChainB := makeHeaderChain(LightChain2.CurrentHeader(), n, db, forkSeed)
-	if _, err := LightChain2.InsertHeaderChain(headerChainB, 1); err != nil {
+	if _, err := LightChain2.InsertHeaderChain(headerChainB); err != nil {
 		t.Fatalf("failed to insert forking chain: %v", err)
 	}
 	// Sanity check that the forked chain can be imported into the original
 	var tdPre, tdPost *big.Int
-
-	tdPre = LightChain.GetTdByHash(LightChain.CurrentHeader().Hash())
+	cur := LightChain.CurrentHeader()
+	tdPre = LightChain.GetTd(cur.Hash(), cur.Number.Uint64())
 	if err := testHeaderChainImport(headerChainB, LightChain); err != nil {
 		t.Fatalf("failed to import forked header chain: %v", err)
 	}
-	tdPost = LightChain.GetTdByHash(headerChainB[len(headerChainB)-1].Hash())
+	last := headerChainB[len(headerChainB)-1]
+	tdPost = LightChain.GetTd(last.Hash(), last.Number.Uint64())
 	// Compare the total difficulties of the chains
 	comparator(tdPre, tdPost)
 }
@@ -119,12 +121,13 @@ func testFork(t *testing.T, LightChain *LightChain, i, n int, comparator func(td
 func testHeaderChainImport(chain []*types.Header, lightchain *LightChain) error {
 	for _, header := range chain {
 		// Try and validate the header
-		if err := lightchain.engine.VerifyHeader(lightchain.hc, header, true); err != nil {
+		if err := lightchain.engine.VerifyHeader(lightchain.hc, header); err != nil {
 			return err
 		}
 		// Manually insert the header into the database, but don't reorganize (allows subsequent testing)
 		lightchain.chainmu.Lock()
-		rawdb.WriteTd(lightchain.chainDb, header.Hash(), header.Number.Uint64(), new(big.Int).Add(header.Difficulty, lightchain.GetTdByHash(header.ParentHash)))
+		rawdb.WriteTd(lightchain.chainDb, header.Hash(), header.Number.Uint64(),
+			new(big.Int).Add(header.Difficulty, lightchain.GetTd(header.ParentHash, header.Number.Uint64()-1)))
 		rawdb.WriteHeader(lightchain.chainDb, header)
 		lightchain.chainmu.Unlock()
 	}
@@ -251,8 +254,8 @@ func makeHeaderChainWithDiff(genesis *types.Block, d []int, seed byte) []*types.
 			Number:      big.NewInt(int64(i + 1)),
 			Difficulty:  big.NewInt(int64(difficulty)),
 			UncleHash:   types.EmptyUncleHash,
-			TxHash:      types.EmptyRootHash,
-			ReceiptHash: types.EmptyRootHash,
+			TxHash:      types.EmptyTxsHash,
+			ReceiptHash: types.EmptyReceiptsHash,
 		}
 		if i == 0 {
 			header.ParentHash = genesis.Hash()
@@ -298,8 +301,8 @@ func testReorg(t *testing.T, first, second []int, td int64) {
 	bc := newTestLightChain()
 
 	// Insert an easy and a difficult chain afterwards
-	bc.InsertHeaderChain(makeHeaderChainWithDiff(bc.genesisBlock, first, 11), 1)
-	bc.InsertHeaderChain(makeHeaderChainWithDiff(bc.genesisBlock, second, 22), 1)
+	bc.InsertHeaderChain(makeHeaderChainWithDiff(bc.genesisBlock, first, 11))
+	bc.InsertHeaderChain(makeHeaderChainWithDiff(bc.genesisBlock, second, 22))
 	// Check that the chain is valid number and link wise
 	prev := bc.CurrentHeader()
 	for header := bc.GetHeaderByNumber(bc.CurrentHeader().Number.Uint64() - 1); header.Number.Uint64() != 0; prev, header = header, bc.GetHeaderByNumber(header.Number.Uint64()-1) {
@@ -309,7 +312,7 @@ func testReorg(t *testing.T, first, second []int, td int64) {
 	}
 	// Make sure the chain total difficulty is the correct one
 	want := new(big.Int).Add(bc.genesisBlock.Difficulty(), big.NewInt(td))
-	if have := bc.GetTdByHash(bc.CurrentHeader().Hash()); have.Cmp(want) != 0 {
+	if have := bc.GetTd(bc.CurrentHeader().Hash(), bc.CurrentHeader().Number.Uint64()); have.Cmp(want) != 0 {
 		t.Errorf("total difficulty mismatch: have %v, want %v", have, want)
 	}
 }
@@ -322,8 +325,8 @@ func TestBadHeaderHashes(t *testing.T) {
 	var err error
 	headers := makeHeaderChainWithDiff(bc.genesisBlock, []int{1, 2, 4}, 10)
 	core.BadHashes[headers[2].Hash()] = true
-	if _, err = bc.InsertHeaderChain(headers, 1); !errors.Is(err, core.ErrBlacklistedHash) {
-		t.Errorf("error mismatch: have: %v, want %v", err, core.ErrBlacklistedHash)
+	if _, err = bc.InsertHeaderChain(headers); !errors.Is(err, core.ErrBannedHash) {
+		t.Errorf("error mismatch: have: %v, want %v", err, core.ErrBannedHash)
 	}
 }
 
@@ -335,7 +338,7 @@ func TestReorgBadHeaderHashes(t *testing.T) {
 	// Create a chain, import and ban afterwards
 	headers := makeHeaderChainWithDiff(bc.genesisBlock, []int{1, 2, 3, 4}, 10)
 
-	if _, err := bc.InsertHeaderChain(headers, 1); err != nil {
+	if _, err := bc.InsertHeaderChain(headers); err != nil {
 		t.Fatalf("failed to import headers: %v", err)
 	}
 	if bc.CurrentHeader().Hash() != headers[3].Hash() {
@@ -345,7 +348,7 @@ func TestReorgBadHeaderHashes(t *testing.T) {
 	defer func() { delete(core.BadHashes, headers[3].Hash()) }()
 
 	// Create a new LightChain and check that it rolled back the state.
-	ncm, err := NewLightChain(&dummyOdr{db: bc.chainDb}, params.TestChainConfig, ethash.NewFaker(), nil)
+	ncm, err := NewLightChain(&dummyOdr{db: bc.chainDb}, params.TestChainConfig, ethash.NewFaker())
 	if err != nil {
 		t.Fatalf("failed to create new chain manager: %v", err)
 	}

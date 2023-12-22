@@ -23,12 +23,13 @@ package main
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"html/template"
-	"io/ioutil"
+	"io"
 	"math"
 	"math/big"
 	"net/http"
@@ -52,6 +53,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethstats"
+	"github.com/ethereum/go-ethereum/internal/version"
 	"github.com/ethereum/go-ethereum/les"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
@@ -91,9 +93,6 @@ var (
 	fixGasPrice        = flag.Int64("faucet.fixedprice", 0, "Will use fixed gas price if specified")
 	twitterTokenFlag   = flag.String("twitter.token", "", "Bearer token to authenticate with the v2 Twitter API")
 	twitterTokenV1Flag = flag.String("twitter.token.v1", "", "Bearer token to authenticate with the v1.1 Twitter API")
-
-	goerliFlag  = flag.Bool("goerli", false, "Initializes the faucet with Görli network config")
-	rinkebyFlag = flag.Bool("rinkeby", false, "Initializes the faucet with Rinkeby network config")
 )
 
 var (
@@ -101,10 +100,8 @@ var (
 	bep2eAbiJson = `[ { "anonymous": false, "inputs": [ { "indexed": true, "internalType": "address", "name": "owner", "type": "address" }, { "indexed": true, "internalType": "address", "name": "spender", "type": "address" }, { "indexed": false, "internalType": "uint256", "name": "value", "type": "uint256" } ], "name": "Approval", "type": "event" }, { "anonymous": false, "inputs": [ { "indexed": true, "internalType": "address", "name": "from", "type": "address" }, { "indexed": true, "internalType": "address", "name": "to", "type": "address" }, { "indexed": false, "internalType": "uint256", "name": "value", "type": "uint256" } ], "name": "Transfer", "type": "event" }, { "inputs": [], "name": "totalSupply", "outputs": [ { "internalType": "uint256", "name": "", "type": "uint256" } ], "stateMutability": "view", "type": "function" }, { "inputs": [], "name": "decimals", "outputs": [ { "internalType": "uint256", "name": "", "type": "uint256" } ], "stateMutability": "view", "type": "function" }, { "inputs": [], "name": "symbol", "outputs": [ { "internalType": "string", "name": "", "type": "string" } ], "stateMutability": "view", "type": "function" }, { "inputs": [], "name": "getOwner", "outputs": [ { "internalType": "address", "name": "", "type": "address" } ], "stateMutability": "view", "type": "function" }, { "inputs": [ { "internalType": "address", "name": "account", "type": "address" } ], "name": "balanceOf", "outputs": [ { "internalType": "uint256", "name": "", "type": "uint256" } ], "stateMutability": "view", "type": "function" }, { "inputs": [ { "internalType": "address", "name": "recipient", "type": "address" }, { "internalType": "uint256", "name": "amount", "type": "uint256" } ], "name": "transfer", "outputs": [ { "internalType": "bool", "name": "", "type": "bool" } ], "stateMutability": "nonpayable", "type": "function" }, { "inputs": [ { "internalType": "address", "name": "_owner", "type": "address" }, { "internalType": "address", "name": "spender", "type": "address" } ], "name": "allowance", "outputs": [ { "internalType": "uint256", "name": "", "type": "uint256" } ], "stateMutability": "view", "type": "function" }, { "inputs": [ { "internalType": "address", "name": "spender", "type": "address" }, { "internalType": "uint256", "name": "amount", "type": "uint256" } ], "name": "approve", "outputs": [ { "internalType": "bool", "name": "", "type": "bool" } ], "stateMutability": "nonpayable", "type": "function" }, { "inputs": [ { "internalType": "address", "name": "sender", "type": "address" }, { "internalType": "address", "name": "recipient", "type": "address" }, { "internalType": "uint256", "name": "amount", "type": "uint256" } ], "name": "transferFrom", "outputs": [ { "internalType": "bool", "name": "", "type": "bool" } ], "stateMutability": "nonpayable", "type": "function" } ]`
 )
 
-var (
-	gitCommit = "" // Git SHA1 commit hash of the release (set via linker flags)
-	gitDate   = "" // Git commit date YYYYMMDD of the release (set via linker flags)
-)
+//go:embed faucet.html
+var websiteTmpl string
 
 func main() {
 	// Parse the flags and set up the logger to print everything requested
@@ -116,7 +113,7 @@ func main() {
 	for i := 0; i < *tiersFlag; i++ {
 		// Calculate the amount for the next tier and format it
 		amount := float64(*payoutFlag) * math.Pow(2.5, float64(i))
-		amounts[i] = fmt.Sprintf("%s Native Tokens", strconv.FormatFloat(amount, 'f', -1, 64))
+		amounts[i] = fmt.Sprintf("0.%s Native Tokens", strconv.FormatFloat(amount, 'f', -1, 64))
 		if amount == 1 {
 			amounts[i] = strings.TrimSuffix(amounts[i], "s")
 		}
@@ -154,13 +151,8 @@ func main() {
 			AmountStr: amountStr,
 		}
 	}
-	// Load up and render the faucet website
-	tmpl, err := Asset("faucet.html")
-	if err != nil {
-		log.Crit("Failed to load the faucet template", "err", err)
-	}
 	website := new(bytes.Buffer)
-	err = template.Must(template.New("").Parse(string(tmpl))).Execute(website, map[string]interface{}{
+	err := template.Must(template.New("").Parse(websiteTmpl)).Execute(website, map[string]interface{}{
 		"Network":    *netnameFlag,
 		"Amounts":    amounts,
 		"Recaptcha":  *captchaToken,
@@ -171,9 +163,9 @@ func main() {
 		log.Crit("Failed to render the faucet template", "err", err)
 	}
 	// Load and parse the genesis block requested by the user
-	genesis, err := getGenesis(genesisFlag, *goerliFlag, *rinkebyFlag)
+	genesis, err := getGenesis(*genesisFlag, false, false)
 	if err != nil {
-		log.Crit("Failed to parse genesis config", "err", err)
+		log.Crit("Failed to read genesis block contents", "genesis", *genesisFlag, "err", err)
 	}
 	// Convert the bootnodes to internal enode representations
 	var enodes []*enode.Node
@@ -188,14 +180,14 @@ func main() {
 		}
 	}
 	// Load up the account key and decrypt its password
-	blob, err := ioutil.ReadFile(*accPassFlag)
+	blob, err := os.ReadFile(*accPassFlag)
 	if err != nil {
 		log.Crit("Failed to read account password contents", "file", *accPassFlag, "err", err)
 	}
 	pass := strings.TrimSuffix(string(blob), "\n")
 
-	ks := keystore.NewKeyStore(filepath.Join(os.Getenv("HOME"), ".faucet", "keys"), keystore.StandardScryptN, keystore.StandardScryptP)
-	if blob, err = ioutil.ReadFile(*accJSONFlag); err != nil {
+	ks := keystore.NewKeyStore(filepath.Join(os.Getenv("HOME"), ".faucet", "keys_2"), keystore.StandardScryptN, keystore.StandardScryptP)
+	if blob, err = os.ReadFile(*accJSONFlag); err != nil {
 		log.Crit("Failed to read account key contents", "file", *accJSONFlag, "err", err)
 	}
 	acc, err := ks.Import(blob, pass, pass)
@@ -270,9 +262,10 @@ type wsConn struct {
 
 func newFaucet(genesis *core.Genesis, port int, enodes []*enode.Node, network uint64, stats string, ks *keystore.KeyStore, index []byte, bep2eInfos map[string]bep2eInfo) (*faucet, error) {
 	// Assemble the raw devp2p protocol stack
+	git, _ := version.VCS()
 	stack, err := node.New(&node.Config{
 		Name:    "geth",
-		Version: params.VersionWithCommit(gitCommit, gitDate),
+		Version: params.VersionWithCommit(git.Commit, git.Date),
 		DataDir: filepath.Join(os.Getenv("HOME"), ".faucet"),
 		NoUSB:   true,
 		P2P: p2p.Config{
@@ -296,7 +289,7 @@ func newFaucet(genesis *core.Genesis, port int, enodes []*enode.Node, network ui
 	cfg.SyncMode = downloader.LightSync
 	cfg.NetworkId = network
 	cfg.Genesis = genesis
-	utils.SetDNSDiscoveryDefaults(&cfg, genesis.ToBlock(nil).Hash())
+	utils.SetDNSDiscoveryDefaults(&cfg, genesis.ToBlock().Hash())
 
 	lesBackend, err := les.New(stack, &cfg)
 	if err != nil {
@@ -320,11 +313,7 @@ func newFaucet(genesis *core.Genesis, port int, enodes []*enode.Node, network ui
 		}
 	}
 	// Attach to the client and retrieve and interesting metadatas
-	api, err := stack.Attach()
-	if err != nil {
-		stack.Close()
-		return nil, err
-	}
+	api := stack.Attach()
 	client := ethclient.NewClient(api)
 
 	return &faucet{
@@ -398,6 +387,11 @@ func (f *faucet) apiHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Start tracking the connection and drop at the end
 	defer conn.Close()
+	ipsStr := r.Header.Get("X-Forwarded-For")
+	ips := strings.Split(ipsStr, ",")
+	if len(ips) < 2 {
+		return
+	}
 
 	f.lock.Lock()
 	wsconn := &wsConn{conn: conn}
@@ -498,7 +492,7 @@ func (f *faucet) apiHandler(w http.ResponseWriter, r *http.Request) {
 			form.Add("secret", *captchaSecret)
 			form.Add("response", msg.Captcha)
 
-			res, err := http.PostForm("https://www.google.com/recaptcha/api/siteverify", form)
+			res, err := http.PostForm("https://hcaptcha.com/siteverify", form)
 			if err != nil {
 				if err = sendError(wsconn, err); err != nil {
 					log.Warn("Failed to send captcha post error to client", "err", err)
@@ -537,6 +531,19 @@ func (f *faucet) apiHandler(w http.ResponseWriter, r *http.Request) {
 			address  common.Address
 		)
 		switch {
+		case strings.HasPrefix(msg.URL, "https://gist.github.com/"):
+			if err = sendError(wsconn, errors.New("GitHub authentication discontinued at the official request of GitHub")); err != nil {
+				log.Warn("Failed to send GitHub deprecation to client", "err", err)
+				return
+			}
+			continue
+		case strings.HasPrefix(msg.URL, "https://plus.google.com/"):
+			//lint:ignore ST1005 Google is a company name and should be capitalized.
+			if err = sendError(wsconn, errors.New("Google+ authentication discontinued as the service was sunset")); err != nil {
+				log.Warn("Failed to send Google+ deprecation to client", "err", err)
+				return
+			}
+			continue
 		case strings.HasPrefix(msg.URL, "https://twitter.com/"):
 			id, username, avatar, address, err = authTwitter(msg.URL, *twitterTokenV1Flag, *twitterTokenFlag)
 		case strings.HasPrefix(msg.URL, "https://www.facebook.com/"):
@@ -564,11 +571,20 @@ func (f *faucet) apiHandler(w http.ResponseWriter, r *http.Request) {
 			fund    bool
 			timeout time.Time
 		)
+
+		if ipTimeout := f.timeouts[ips[len(ips)-2]]; time.Now().Before(ipTimeout) {
+			if err = sendError(wsconn, fmt.Errorf("%s left until next allowance", common.PrettyDuration(time.Until(ipTimeout)))); err != nil { // nolint: gosimple
+				log.Warn("Failed to send funding error to client", "err", err)
+			}
+			f.lock.Unlock()
+			continue
+		}
+
 		if timeout = f.timeouts[id]; time.Now().After(timeout) {
 			var tx *types.Transaction
 			if msg.Symbol == "NativeToken" {
 				// User wasn't funded recently, create the funding transaction
-				amount := new(big.Int).Mul(big.NewInt(int64(*payoutFlag)), ether)
+				amount := new(big.Int).Div(new(big.Int).Mul(big.NewInt(int64(*payoutFlag)), ether), big.NewInt(10))
 				amount = new(big.Int).Mul(amount, new(big.Int).Exp(big.NewInt(5), big.NewInt(int64(msg.Tier)), nil))
 				amount = new(big.Int).Div(amount, new(big.Int).Exp(big.NewInt(2), big.NewInt(int64(msg.Tier)), nil))
 
@@ -616,6 +632,7 @@ func (f *faucet) apiHandler(w http.ResponseWriter, r *http.Request) {
 			grace := timeout / 288 // 24h timeout => 5m grace
 
 			f.timeouts[id] = time.Now().Add(timeout - grace)
+			f.timeouts[ips[len(ips)-2]] = time.Now().Add(timeout - grace)
 			fund = true
 		}
 		f.lock.Unlock()
@@ -676,6 +693,9 @@ func (f *faucet) refresh(head *types.Header) error {
 	f.lock.Lock()
 	f.head, f.balance = head, balance
 	f.price, f.nonce = price, nonce
+	if len(f.reqs) > 0 && f.reqs[0].Tx.Nonce() > f.nonce {
+		f.reqs = f.reqs[:0]
+	}
 	for len(f.reqs) > 0 && f.reqs[0].Tx.Nonce() < f.nonce {
 		f.reqs = f.reqs[1:]
 	}
@@ -814,7 +834,7 @@ func authTwitter(url string, tokenV1, tokenV2 string) (string, string, string, c
 	case tokenV2 != "":
 		return authTwitterWithTokenV2(tweetID, tokenV2)
 	}
-	// Twiter API token isn't provided so we just load the public posts
+	// Twitter API token isn't provided so we just load the public posts
 	// and scrape it for the Ethereum address and profile URL. We need to load
 	// the mobile page though since the main page loads tweet contents via JS.
 	url = strings.Replace(url, "https://twitter.com/", "https://mobile.twitter.com/", 1)
@@ -833,17 +853,17 @@ func authTwitter(url string, tokenV1, tokenV2 string) (string, string, string, c
 	}
 	username := parts[len(parts)-3]
 
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return "", "", "", common.Address{}, err
 	}
 	address := common.HexToAddress(string(regexp.MustCompile("0x[0-9a-fA-F]{40}").Find(body)))
 	if address == (common.Address{}) {
 		//lint:ignore ST1005 This error is to be displayed in the browser
-		return "", "", "", common.Address{}, errors.New("No Binance Smart Chain address found to fund")
+		return "", "", "", common.Address{}, errors.New("No BNB Smart Chain address found to fund")
 	}
 	var avatar string
-	if parts = regexp.MustCompile("src=\"([^\"]+twimg.com/profile_images[^\"]+)\"").FindStringSubmatch(string(body)); len(parts) == 2 {
+	if parts = regexp.MustCompile(`src="([^"]+twimg\.com/profile_images[^"]+)"`).FindStringSubmatch(string(body)); len(parts) == 2 {
 		avatar = parts[1]
 	}
 	return username + "@twitter", username, avatar, address, nil
@@ -855,7 +875,7 @@ func authTwitter(url string, tokenV1, tokenV2 string) (string, string, string, c
 func authTwitterWithTokenV1(tweetID string, token string) (string, string, string, common.Address, error) {
 	// Query the tweet details from Twitter
 	url := fmt.Sprintf("https://api.twitter.com/1.1/statuses/show.json?id=%s", tweetID)
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return "", "", "", common.Address{}, err
 	}
@@ -892,7 +912,7 @@ func authTwitterWithTokenV1(tweetID string, token string) (string, string, strin
 func authTwitterWithTokenV2(tweetID string, token string) (string, string, string, common.Address, error) {
 	// Query the tweet details from Twitter
 	url := fmt.Sprintf("https://api.twitter.com/2/tweets/%s?expansions=author_id&user.fields=profile_image_url", tweetID)
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return "", "", "", common.Address{}, err
 	}
@@ -959,17 +979,17 @@ func authFacebook(url string) (string, string, common.Address, error) {
 	}
 	defer res.Body.Close()
 
-	body, err := ioutil.ReadAll(res.Body)
+	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		return "", "", common.Address{}, err
 	}
 	address := common.HexToAddress(string(regexp.MustCompile("0x[0-9a-fA-F]{40}").Find(body)))
 	if address == (common.Address{}) {
 		//lint:ignore ST1005 This error is to be displayed in the browser
-		return "", "", common.Address{}, errors.New("No Binance Smart Chain address found to fund")
+		return "", "", common.Address{}, errors.New("No BNB Smart Chain address found to fund. Please check the post URL and verify that it can be viewed publicly.")
 	}
 	var avatar string
-	if parts = regexp.MustCompile("src=\"([^\"]+fbcdn.net[^\"]+)\"").FindStringSubmatch(string(body)); len(parts) == 2 {
+	if parts = regexp.MustCompile(`src="([^"]+fbcdn\.net[^"]+)"`).FindStringSubmatch(string(body)); len(parts) == 2 {
 		avatar = parts[1]
 	}
 	return username + "@facebook", avatar, address, nil
@@ -982,19 +1002,19 @@ func authNoAuth(url string) (string, string, common.Address, error) {
 	address := common.HexToAddress(regexp.MustCompile("0x[0-9a-fA-F]{40}").FindString(url))
 	if address == (common.Address{}) {
 		//lint:ignore ST1005 This error is to be displayed in the browser
-		return "", "", common.Address{}, errors.New("No Binance Smart Chain address found to fund")
+		return "", "", common.Address{}, errors.New("No BNB Smart Chain address found to fund")
 	}
 	return address.Hex() + "@noauth", "", address, nil
 }
 
 // getGenesis returns a genesis based on input args
-func getGenesis(genesisFlag *string, goerliFlag bool, rinkebyFlag bool) (*core.Genesis, error) {
+func getGenesis(genesisFlag string, goerliFlag bool, sepoliaFlag bool) (*core.Genesis, error) {
 	switch {
-	case genesisFlag != nil:
+	case genesisFlag != "":
 		var genesis core.Genesis
-		err := common.LoadJSON(*genesisFlag, &genesis)
+		err := common.LoadJSON(genesisFlag, &genesis)
 		return &genesis, err
 	default:
-		return nil, fmt.Errorf("no genesis flag provided")
+		return nil, errors.New("no genesis flag provided")
 	}
 }
