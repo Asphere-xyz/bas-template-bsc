@@ -23,7 +23,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/clique"
+	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/consensus/parlia"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -208,5 +210,11 @@ func CreateConsensusEngine(config *params.ChainConfig, db ethdb.Database, ee *et
 	if config.Clique != nil {
 		return clique.New(config.Clique, db), nil
 	}
-	return nil, errors.New("no consensus engine")
+	// If defaulting to proof-of-work, enforce an already merged network since
+	// we cannot run PoW algorithms and more, so we cannot even follow a chain
+	// not coordinated by a beacon node.
+	if !config.TerminalTotalDifficultyPassed {
+		return nil, errors.New("ethash is only supported as a historical component of already merged networks")
+	}
+	return beacon.New(ethash.NewFaker()), nil
 }

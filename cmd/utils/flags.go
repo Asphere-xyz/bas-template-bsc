@@ -95,8 +95,7 @@ var (
 	GenesisFlag = &cli.StringFlag{
 		Name:     "genesis",
 		Usage:    "Path to genesis JSON file",
-		Value:    "./genesis/devnet.json",
-		Category: flags.MinerCategory,
+		Category: flags.EthCategory,
 	}
 
 	// General settings
