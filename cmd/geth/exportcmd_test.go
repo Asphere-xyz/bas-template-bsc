@@ -16,7 +16,16 @@
 
 package main
 
-// TestExport is invalid for the bas network because the genesis is created by the 'genesis' submodule.
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"testing"
+
+	"github.com/ethereum/go-ethereum/common"
+)
+
+// TODO: fix 'geth init' and uncomment this test
 // TestExport does a basic test of "geth export", exporting the test-genesis.
 // func TestExport(t *testing.T) {
 // 	outfile := fmt.Sprintf("%v/testExport.out", os.TempDir())
