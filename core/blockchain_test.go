@@ -3556,10 +3556,11 @@ func TestEIP2718TransitionWithTestChainConfig(t *testing.T) {
 	testEIP2718TransitionWithConfig(t, params.TestChainConfig)
 }
 
+// TODO: add config, uncomment test
 // TestEIP2718TransitionWithParliaConfig tests EIP-2718 with Parlia Config.
-func TestEIP2718TransitionWithParliaConfig(t *testing.T) {
-	testEIP2718TransitionWithConfig(t, params.ParliaTestChainConfig)
-}
+// func TestEIP2718TransitionWithParliaConfig(t *testing.T) {
+// 	testEIP2718TransitionWithConfig(t, params.ParliaTestChainConfig)
+// }
 
 // testEIP2718TransitionWithConfig tests EIP02718 with given ChainConfig.
 func testEIP2718TransitionWithConfig(t *testing.T, config *params.ChainConfig) {

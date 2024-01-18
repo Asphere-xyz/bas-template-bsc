@@ -77,7 +77,7 @@ func testSetupGenesis(t *testing.T, scheme string) {
 		{
 			name: "mainnet block in DB, genesis == nil",
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
-				DefaultGenesisBlock().MustCommit(db, trie.NewDatabase(db, newDbConfig(scheme)))
+				DefaultETHGenesisBlock().MustCommit(db, trie.NewDatabase(db, newDbConfig(scheme)))
 				return SetupGenesisBlock(db, trie.NewDatabase(db, newDbConfig(scheme)), nil)
 			},
 			wantHash:   params.MainnetGenesisHash,
@@ -161,7 +161,7 @@ func TestGenesisHashes(t *testing.T) {
 		genesis *Genesis
 		want    common.Hash
 	}{
-		{DefaultGenesisBlock(), params.MainnetGenesisHash},
+		{DefaultETHGenesisBlock(), params.MainnetGenesisHash},
 	} {
 		// Test via MustCommit
 		db := rawdb.NewMemoryDatabase()
@@ -234,7 +234,7 @@ func TestReadWriteGenesisAlloc(t *testing.T) {
 }
 
 func TestConfigOrDefault(t *testing.T) {
-	defaultGenesis := DefaultGenesisBlock()
+	defaultGenesis := DefaultETHGenesisBlock()
 	if defaultGenesis.Config.PlanckBlock != nil {
 		t.Errorf("initial config should have PlanckBlock = nil, but instead PlanckBlock = %v", defaultGenesis.Config.PlanckBlock)
 	}
