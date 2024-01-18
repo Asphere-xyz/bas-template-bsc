@@ -16,15 +16,6 @@
 
 package main
 
-import (
-	"bytes"
-	"fmt"
-	"os"
-	"testing"
-
-	"github.com/ethereum/go-ethereum/common"
-)
-
 // TODO: fix 'geth init' and uncomment this test
 // TestExport does a basic test of "geth export", exporting the test-genesis.
 // func TestExport(t *testing.T) {
