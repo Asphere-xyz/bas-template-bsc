@@ -306,6 +306,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *trie.Database, gen
 			// BAS
 			// In the BSC code the DefaultBSCGenesisBlock() is created here.
 			// But BAS doesn't have the default genesis block.
+			// TODO: Create the default config to the BAS Genesis block.
 			// Returns the error.
 			return nil, common.Hash{}, errors.New("there is no genesis block")
 		}

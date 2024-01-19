@@ -16,7 +16,9 @@
 
 package main
 
+// BAS
 // TODO: fix 'geth init' and uncomment this test
+
 // TestExport does a basic test of "geth export", exporting the test-genesis.
 // func TestExport(t *testing.T) {
 // 	outfile := fmt.Sprintf("%v/testExport.out", os.TempDir())

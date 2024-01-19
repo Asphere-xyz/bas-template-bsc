@@ -68,6 +68,7 @@ func testSetupGenesis(t *testing.T, scheme string) {
 		},
 		// BAS
 		// BAS doesn't have the default genesis block.
+		// TODO: Create the default config to the BAS Genesis block.
 		// Testcase is invalid for the BAS.
 		// {
 		// 	name: "no block in DB, genesis == nil",

@@ -64,7 +64,9 @@ var customGenesisTests = []struct {
 	},
 }
 
+// BAS
 // TODO: fix 'geth init' and uncomment this test
+
 // Tests that initializing Geth with a custom genesis block and chain definitions
 // // work properly.
 // func TestCustomGenesis(t *testing.T) {
@@ -90,7 +92,9 @@ var customGenesisTests = []struct {
 // 	}
 // }
 
+// BAS
 // TODO: fix 'geth init' and uncomment this test
+
 // TestCustomBackend that the backend selection and detection (leveldb vs pebble) works properly.
 // func TestCustomBackend(t *testing.T) {
 // 	t.Parallel()

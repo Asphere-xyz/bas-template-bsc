@@ -139,8 +139,14 @@ func loadBaseConfig(ctx *cli.Context) gethConfig {
 		}
 	}
 
-	// Make sure we have a valid genesis JSON
-	if genesisPath := ctx.String(utils.GenesisFlag.Name); genesisPath != "" {
+	// BAS
+	// Create the DeveloperGenesis block if the genesis path isn't specified.
+	// TODO: Create the default config to the BAS Genesis block.
+	// If the genesis path specified, create the genesis block from the specified config.
+	// Make sure we have a valid genesis JSON.
+	if genesisPath := ctx.String(utils.GenesisFlag.Name); genesisPath == "" {
+		cfg.Eth.Genesis = core.DeveloperGenesisBlock(140_000_000, common.Address{})
+	} else {
 		file, err := os.Open(genesisPath)
 		if err != nil {
 			utils.Fatalf("Failed to read genesis file: %v", err)
@@ -153,8 +159,6 @@ func loadBaseConfig(ctx *cli.Context) gethConfig {
 			utils.Fatalf("invalid genesis file: %v", err)
 		}
 		cfg.Eth.Genesis = genesis
-	} else {
-		cfg.Eth.Genesis = core.DeveloperGenesisBlock(140_000_000, common.Address{})
 	}
 
 	// Apply flags.
