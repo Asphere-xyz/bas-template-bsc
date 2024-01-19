@@ -317,6 +317,17 @@ var (
 	TestRules = TestChainConfig.Rules(new(big.Int), false, 0)
 )
 
+func GetBuiltInChainConfig(ghash common.Hash) *ChainConfig {
+	switch ghash {
+	case MainnetGenesisHash:
+		return MainnetChainConfig
+	case BSCGenesisHash:
+		return BSCChainConfig
+	default:
+		return nil
+	}
+}
+
 // ChainConfig is the core config which determines the blockchain settings.
 //
 // ChainConfig is stored in the database on a per block basis. This means
