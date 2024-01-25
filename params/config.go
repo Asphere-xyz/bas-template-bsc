@@ -19,11 +19,115 @@ package params
 import (
 	"fmt"
 	"math/big"
+
+	"github.com/ethereum/go-ethereum/common"
+)
+
+var (
+	MainnetGenesisHash = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
+	BSCGenesisHash     = common.HexToHash("0x0d21840abff46b96c84b2ac9e10e4f5cdaeb5693cb665db62a2f3b02d2d57b5b")
 )
 
 func newUint64(val uint64) *uint64 { return &val }
 
 var (
+	MainnetTerminalTotalDifficulty, _ = new(big.Int).SetString("58_750_000_000_000_000_000_000", 0)
+
+	// MainnetChainConfig is the chain parameters to run a node on the main network.
+	MainnetChainConfig = &ChainConfig{
+		ChainID:                       big.NewInt(1),
+		HomesteadBlock:                big.NewInt(1_150_000),
+		DAOForkBlock:                  big.NewInt(1_920_000),
+		DAOForkSupport:                true,
+		EIP150Block:                   big.NewInt(2_463_000),
+		EIP155Block:                   big.NewInt(2_675_000),
+		EIP158Block:                   big.NewInt(2_675_000),
+		ByzantiumBlock:                big.NewInt(4_370_000),
+		ConstantinopleBlock:           big.NewInt(7_280_000),
+		PetersburgBlock:               big.NewInt(7_280_000),
+		IstanbulBlock:                 big.NewInt(9_069_000),
+		MuirGlacierBlock:              big.NewInt(9_200_000),
+		RamanujanBlock:                big.NewInt(0),
+		NielsBlock:                    big.NewInt(0),
+		MirrorSyncBlock:               big.NewInt(0),
+		BrunoBlock:                    big.NewInt(0),
+		EulerBlock:                    big.NewInt(0),
+		BerlinBlock:                   big.NewInt(12_244_000),
+		LondonBlock:                   big.NewInt(12_965_000),
+		ArrowGlacierBlock:             big.NewInt(13_773_000),
+		GrayGlacierBlock:              big.NewInt(15_050_000),
+		TerminalTotalDifficulty:       MainnetTerminalTotalDifficulty, // 58_750_000_000_000_000_000_000
+		TerminalTotalDifficultyPassed: true,
+		ShanghaiTime:                  newUint64(1681338455),
+	}
+
+	BSCChainConfig = &ChainConfig{
+		ChainID:             big.NewInt(56),
+		HomesteadBlock:      big.NewInt(0),
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		MuirGlacierBlock:    big.NewInt(0),
+		RamanujanBlock:      big.NewInt(0),
+		NielsBlock:          big.NewInt(0),
+		MirrorSyncBlock:     big.NewInt(5184000),
+		BrunoBlock:          big.NewInt(13082000),
+		EulerBlock:          big.NewInt(18907621),
+		NanoBlock:           big.NewInt(21962149),
+		MoranBlock:          big.NewInt(22107423),
+		GibbsBlock:          big.NewInt(23846001),
+		PlanckBlock:         big.NewInt(27281024),
+		LubanBlock:          big.NewInt(29020050),
+		PlatoBlock:          big.NewInt(30720096),
+		BerlinBlock:         big.NewInt(31302048),
+		LondonBlock:         big.NewInt(31302048),
+		HertzBlock:          big.NewInt(31302048),
+		HertzfixBlock:       big.NewInt(34140700),
+		// UnixTime: 1705996800 is January 23, 2024 8:00:00 AM UTC
+		ShanghaiTime: newUint64(1705996800),
+		KeplerTime:   newUint64(1705996800),
+
+		Parlia: &ParliaConfig{
+			Period: 3,
+			Epoch:  200,
+		},
+	}
+
+	ParliaTestChainConfig = &ChainConfig{
+		ChainID:             big.NewInt(2),
+		HomesteadBlock:      big.NewInt(0),
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		MuirGlacierBlock:    big.NewInt(0),
+		RamanujanBlock:      big.NewInt(0),
+		NielsBlock:          big.NewInt(0),
+		MirrorSyncBlock:     big.NewInt(0),
+		BrunoBlock:          big.NewInt(0),
+		EulerBlock:          big.NewInt(0),
+		NanoBlock:           big.NewInt(0),
+		MoranBlock:          big.NewInt(0),
+		GibbsBlock:          big.NewInt(0),
+		PlanckBlock:         big.NewInt(0),
+		LubanBlock:          big.NewInt(0),
+		PlatoBlock:          big.NewInt(0),
+		BerlinBlock:         big.NewInt(0),
+		LondonBlock:         big.NewInt(0),
+		HertzBlock:          big.NewInt(0),
+		HertzfixBlock:       big.NewInt(0),
+		Parlia: &ParliaConfig{
+			Period: 3,
+			Epoch:  200,
+		},
+	}
 
 	// just for prysm compile pass
 	// SepoliaChainConfig contains the chain parameters to run a node on the Sepolia test network.
@@ -212,6 +316,17 @@ var (
 	}
 	TestRules = TestChainConfig.Rules(new(big.Int), false, 0)
 )
+
+func GetBuiltInChainConfig(ghash common.Hash) *ChainConfig {
+	switch ghash {
+	case MainnetGenesisHash:
+		return MainnetChainConfig
+	case BSCGenesisHash:
+		return BSCChainConfig
+	default:
+		return nil
+	}
+}
 
 // ChainConfig is the core config which determines the blockchain settings.
 //

@@ -44,14 +44,12 @@ func copyConfig(original *params.ChainConfig) *params.ChainConfig {
 		BerlinBlock:             original.BerlinBlock,
 		LondonBlock:             original.LondonBlock,
 		TerminalTotalDifficulty: original.TerminalTotalDifficulty,
-		Ethash:                  original.Ethash,
 		Clique:                  original.Clique,
 	}
 }
 
 func config() *params.ChainConfig {
 	config := copyConfig(params.TestChainConfig)
-	config.Ethash = nil
 	config.Parlia = &params.ParliaConfig{
 		Period: 3,
 		Epoch:  200,

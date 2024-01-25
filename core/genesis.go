@@ -303,6 +303,11 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *trie.Database, gen
 	stored := rawdb.ReadCanonicalHash(db, 0)
 	if (stored == common.Hash{}) {
 		if genesis == nil {
+			// BAS
+			// In the BSC code the DefaultBSCGenesisBlock() is created here.
+			// But BAS doesn't have the default genesis block.
+			// TODO: Create the default config to the BAS Genesis block.
+			// Returns the error.
 			return nil, common.Hash{}, errors.New("there is no genesis block")
 		}
 		block, err := genesis.Commit(db, triedb)
@@ -354,6 +359,15 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, triedb *trie.Database, gen
 		return newcfg, stored, nil
 	}
 	storedData, _ := json.Marshal(storedcfg)
+	// Special case: if a private network is being used (no genesis and also no
+	// mainnet hash in the database), we must not apply the `configOrDefault`
+	// chain config as that would be AllProtocolChanges (applying any new fork
+	// on top of an existing private network genesis block). In that case, only
+	// apply the overrides.
+	if genesis == nil && stored != params.MainnetGenesisHash && stored != params.BSCGenesisHash {
+		newcfg = storedcfg
+		applyOverrides(newcfg)
+	}
 	// Check config compatibility and write the config. Compatibility errors
 	// are returned to the caller unless we're already at block zero.
 	head := rawdb.ReadHeadHeader(db)
@@ -434,39 +448,15 @@ func (g *Genesis) setDefaultHardforkValues(defaultConfig *params.ChainConfig) {
 	}
 }
 
-// Hard fork field specified in config.toml has higher priority, but
-// if it is not specified in config.toml, use the default height in code.
 func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
-	var defaultConfig *params.ChainConfig
-	switch {
-	case g != nil:
-		return g.Config
-	default:
-		if g != nil {
-			// it could be a custom config for QA test, just return
-			return g.Config
-		}
-		defaultConfig = params.AllEthashProtocolChanges
+	conf := params.GetBuiltInChainConfig(ghash)
+	if conf != nil {
+		return conf
 	}
-	if g == nil || g.Config == nil {
-		return defaultConfig
+	if g != nil {
+		return g.Config // it could be a custom config for QA test, just return
 	}
-
-	g.setDefaultHardforkValues(defaultConfig)
-
-	// BSC Parlia set up
-	if g.Config.Parlia == nil {
-		g.Config.Parlia = defaultConfig.Parlia
-	} else {
-		if g.Config.Parlia.Period == 0 {
-			g.Config.Parlia.Period = defaultConfig.Parlia.Period
-		}
-		if g.Config.Parlia.Epoch == 0 {
-			g.Config.Parlia.Epoch = defaultConfig.Parlia.Epoch
-		}
-	}
-
-	return g.Config
+	return params.AllEthashProtocolChanges
 }
 
 // ToBlock returns the genesis block according to genesis specification.
@@ -565,6 +555,18 @@ func (g *Genesis) MustCommit(db ethdb.Database, triedb *trie.Database) *types.Bl
 		panic(err)
 	}
 	return block
+}
+
+// DefaultETHGenesisBlock returns the Ethereum main net genesis block.
+func DefaultETHGenesisBlock() *Genesis {
+	return &Genesis{
+		Config:     params.MainnetChainConfig,
+		Nonce:      66,
+		ExtraData:  hexutil.MustDecode("0x11bbe8db4e347b4e8c937c1c8370e4b5ed33adb3db69cbdb7a38e1e50b1b82fa"),
+		GasLimit:   5000,
+		Difficulty: big.NewInt(17179869184),
+		Alloc:      decodePrealloc(mainnetAllocData),
+	}
 }
 
 // GenesisBlockForTesting creates and writes a block in which addr has the given wei balance.

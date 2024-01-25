@@ -63,7 +63,6 @@ func TestStateProcessorErrors(t *testing.T) {
 			BerlinBlock:                   big.NewInt(0),
 			LondonBlock:                   big.NewInt(0),
 			GibbsBlock:                    big.NewInt(0),
-			Ethash:                        new(params.EthashConfig),
 			TerminalTotalDifficulty:       big.NewInt(0),
 			TerminalTotalDifficultyPassed: true,
 			ShanghaiTime:                  new(uint64),

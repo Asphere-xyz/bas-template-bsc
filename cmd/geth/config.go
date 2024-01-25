@@ -21,10 +21,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/core"
 	"os"
 	"reflect"
 	"unicode"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 
 	"github.com/urfave/cli/v2"
 
@@ -137,23 +139,27 @@ func loadBaseConfig(ctx *cli.Context) gethConfig {
 		}
 	}
 
-	// Make sure we have a valid genesis JSON
-	genesisPath := ctx.String(utils.GenesisFlag.Name)
-	if len(genesisPath) == 0 {
-		utils.Fatalf("Must supply path to genesis JSON file")
-	}
-	file, err := os.Open(genesisPath)
-	if err != nil {
-		utils.Fatalf("Failed to read genesis file: %v", err)
-	}
-	//goland:noinspection GoUnhandledErrorResult
-	defer file.Close()
+	// BAS
+	// Create the DeveloperGenesis block if the genesis path isn't specified.
+	// TODO: Create the default config to the BAS Genesis block.
+	// If the genesis path specified, create the genesis block from the specified config.
+	// Make sure we have a valid genesis JSON.
+	if genesisPath := ctx.String(utils.GenesisFlag.Name); genesisPath == "" {
+		cfg.Eth.Genesis = core.DeveloperGenesisBlock(140_000_000, common.Address{})
+	} else {
+		file, err := os.Open(genesisPath)
+		if err != nil {
+			utils.Fatalf("Failed to read genesis file: %v", err)
+		}
+		//goland:noinspection GoUnhandledErrorResult
+		defer file.Close()
 
-	genesis := new(core.Genesis)
-	if err := json.NewDecoder(file).Decode(genesis); err != nil {
-		utils.Fatalf("invalid genesis file: %v", err)
+		genesis := new(core.Genesis)
+		if err := json.NewDecoder(file).Decode(genesis); err != nil {
+			utils.Fatalf("invalid genesis file: %v", err)
+		}
+		cfg.Eth.Genesis = genesis
 	}
-	cfg.Eth.Genesis = genesis
 
 	// Apply flags.
 	utils.SetNodeConfig(ctx, &cfg.Node)

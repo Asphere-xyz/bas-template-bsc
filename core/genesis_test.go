@@ -66,18 +66,22 @@ func testSetupGenesis(t *testing.T, scheme string) {
 			wantErr:    errGenesisNoConfig,
 			wantConfig: params.AllEthashProtocolChanges,
 		},
-		{
-			name: "no block in DB, genesis == nil",
-			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
-				return SetupGenesisBlock(db, trie.NewDatabase(db, newDbConfig(scheme)), nil)
-			},
-			wantHash:   params.BSCGenesisHash,
-			wantConfig: params.BSCChainConfig,
-		},
+		// BAS
+		// BAS doesn't have the default genesis block.
+		// TODO: Create the default config to the BAS Genesis block.
+		// Testcase is invalid for the BAS.
+		// {
+		// 	name: "no block in DB, genesis == nil",
+		// 	fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
+		// 		return SetupGenesisBlock(db, trie.NewDatabase(db, newDbConfig(scheme)), nil)
+		// 	},
+		// 	wantHash:   params.BSCGenesisHash,
+		// 	wantConfig: params.BSCChainConfig,
+		// },
 		{
 			name: "mainnet block in DB, genesis == nil",
 			fn: func(db ethdb.Database) (*params.ChainConfig, common.Hash, error) {
-				DefaultGenesisBlock().MustCommit(db, trie.NewDatabase(db, newDbConfig(scheme)))
+				DefaultETHGenesisBlock().MustCommit(db, trie.NewDatabase(db, newDbConfig(scheme)))
 				return SetupGenesisBlock(db, trie.NewDatabase(db, newDbConfig(scheme)), nil)
 			},
 			wantHash:   params.MainnetGenesisHash,
@@ -161,7 +165,7 @@ func TestGenesisHashes(t *testing.T) {
 		genesis *Genesis
 		want    common.Hash
 	}{
-		{DefaultGenesisBlock(), params.MainnetGenesisHash},
+		{DefaultETHGenesisBlock(), params.MainnetGenesisHash},
 	} {
 		// Test via MustCommit
 		db := rawdb.NewMemoryDatabase()
@@ -234,19 +238,19 @@ func TestReadWriteGenesisAlloc(t *testing.T) {
 }
 
 func TestConfigOrDefault(t *testing.T) {
-	defaultGenesis := DefaultGenesisBlock()
+	defaultGenesis := DefaultETHGenesisBlock()
 	if defaultGenesis.Config.PlanckBlock != nil {
 		t.Errorf("initial config should have PlanckBlock = nil, but instead PlanckBlock = %v", defaultGenesis.Config.PlanckBlock)
 	}
 	gHash := params.BSCGenesisHash
 	config := defaultGenesis.configOrDefault(gHash)
 
-	if config.ChainID.Cmp(params.MainnetChainConfig.ChainID) != 0 {
+	if config.ChainID.Cmp(params.BSCChainConfig.ChainID) != 0 {
 		t.Errorf("ChainID of resulting config should be %v, but is %v instead", params.BSCChainConfig.ChainID, config.ChainID)
 	}
 
-	if config.HomesteadBlock.Cmp(params.MainnetChainConfig.HomesteadBlock) != 0 {
-		t.Errorf("resulting config should have HomesteadBlock = %v, but instead is %v", params.MainnetChainConfig, config.HomesteadBlock)
+	if config.HomesteadBlock.Cmp(params.BSCChainConfig.HomesteadBlock) != 0 {
+		t.Errorf("resulting config should have HomesteadBlock = %v, but instead is %v", params.BSCChainConfig, config.HomesteadBlock)
 	}
 
 	if config.PlanckBlock == nil {
