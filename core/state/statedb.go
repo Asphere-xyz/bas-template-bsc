@@ -752,6 +752,12 @@ func (s *StateDB) getStateObject(addr common.Address) *stateObject {
 	return nil
 }
 
+// getStateObjects returns the stateObjects.
+// BAS. It's needed to generate the genesis.
+func (s *StateDB) GetStateObjects() map[common.Address]*stateObject {
+	return s.stateObjects
+}
+
 // getDeletedStateObject is similar to getStateObject, but instead of returning
 // nil for a deleted state object, it returns the actual object with the deleted
 // flag set. This is needed by the state journal to revert to the correct s-

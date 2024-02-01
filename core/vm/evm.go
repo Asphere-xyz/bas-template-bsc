@@ -24,6 +24,7 @@ import (
 	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/systemcontract"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
@@ -487,7 +488,8 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	ret, err := evm.interpreter.Run(contract, nil, false)
 
 	// Check whether the max code size has been exceeded, assign err if the case.
-	if err == nil && evm.chainRules.IsEIP158 && len(ret) > params.MaxCodeSize {
+	// BAS. System contracts are allowed to deploy contracts with unlimited size.
+	if err == nil && evm.chainRules.IsEIP158 && len(ret) > params.MaxCodeSize && !systemcontract.IsSystemContract(caller.Address()) {
 		err = ErrMaxCodeSizeExceeded
 	}
 

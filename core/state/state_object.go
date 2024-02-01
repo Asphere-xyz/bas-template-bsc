@@ -175,6 +175,12 @@ func (s *stateObject) GetState(key common.Hash) common.Hash {
 	return s.GetCommittedState(key)
 }
 
+// GetDirtyStorage returns the dirtyStorage.
+// BAS. It's needed to generate the genesis.
+func (s *stateObject) GetDirtyStorage() Storage {
+	return s.dirtyStorage
+}
+
 func (s *stateObject) getOriginStorage(key common.Hash) (common.Hash, bool) {
 	if value, cached := s.originStorage[key]; cached {
 		return value, true
