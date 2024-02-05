@@ -22,67 +22,63 @@ import (
 	"runtime"
 	"strings"
 
-	"gopkg.in/urfave/cli.v1"
-
-	"github.com/ethereum/go-ethereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/internal/version"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/urfave/cli/v2"
 )
 
 var (
-	VersionCheckUrlFlag = cli.StringFlag{
+	VersionCheckUrlFlag = &cli.StringFlag{
 		Name:  "check.url",
 		Usage: "URL to use when checking vulnerabilities",
 		Value: "https://geth.ethereum.org/docs/vulnerabilities/vulnerabilities.json",
 	}
-	VersionCheckVersionFlag = cli.StringFlag{
+	VersionCheckVersionFlag = &cli.StringFlag{
 		Name:  "check.version",
 		Usage: "Version to check",
-		Value: fmt.Sprintf("Geth/v%v/%v-%v/%v",
-			params.VersionWithCommit(gitCommit, gitDate),
-			runtime.GOOS, runtime.GOARCH, runtime.Version()),
+		Value: version.ClientName(clientIdentifier),
 	}
-	versionCommand = cli.Command{
-		Action:    utils.MigrateFlags(version),
+	versionCommand = &cli.Command{
+		Action:    printVersion,
 		Name:      "version",
 		Usage:     "Print version numbers",
 		ArgsUsage: " ",
-		Category:  "MISCELLANEOUS COMMANDS",
 		Description: `
 The output of this command is supposed to be machine-readable.
 `,
 	}
-	versionCheckCommand = cli.Command{
-		Action: utils.MigrateFlags(versionCheck),
+	versionCheckCommand = &cli.Command{
+		Action: versionCheck,
 		Flags: []cli.Flag{
 			VersionCheckUrlFlag,
 			VersionCheckVersionFlag,
 		},
 		Name:      "version-check",
-		Usage:     "Checks (online) whether the current version suffers from any known security vulnerabilities",
+		Usage:     "Checks (online) for known Geth security vulnerabilities",
 		ArgsUsage: "<versionstring (optional)>",
-		Category:  "MISCELLANEOUS COMMANDS",
 		Description: `
 The version-check command fetches vulnerability-information from https://geth.ethereum.org/docs/vulnerabilities/vulnerabilities.json, 
 and displays information about any security vulnerabilities that affect the currently executing version.
 `,
 	}
-	licenseCommand = cli.Command{
-		Action:    utils.MigrateFlags(license),
+	licenseCommand = &cli.Command{
+		Action:    license,
 		Name:      "license",
 		Usage:     "Display license information",
 		ArgsUsage: " ",
-		Category:  "MISCELLANEOUS COMMANDS",
 	}
 )
 
-func version(ctx *cli.Context) error {
+func printVersion(ctx *cli.Context) error {
+	git, _ := version.VCS()
+
 	fmt.Println(strings.Title(clientIdentifier))
 	fmt.Println("Version:", params.VersionWithMeta)
-	if gitCommit != "" {
-		fmt.Println("Git Commit:", gitCommit)
+	if git.Commit != "" {
+		fmt.Println("Git Commit:", git.Commit)
 	}
-	if gitDate != "" {
-		fmt.Println("Git Commit Date:", gitDate)
+	if git.Date != "" {
+		fmt.Println("Git Commit Date:", git.Date)
 	}
 	fmt.Println("Architecture:", runtime.GOARCH)
 	fmt.Println("Go Version:", runtime.Version())

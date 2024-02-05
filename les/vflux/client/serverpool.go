@@ -1,4 +1,4 @@
-// Copyright 2020 The go-ethereum Authors
+// Copyright 2021 The go-ethereum Authors
 // This file is part of the go-ethereum library.
 //
 // The go-ethereum library is free software: you can redistribute it and/or modify
@@ -44,7 +44,7 @@ const (
 	queryWaitStep       = 1.02                   // exponential multiplier of redial wait time when no value was provided by the server
 	waitThreshold       = time.Hour * 2000       // drop node if waiting time is over the threshold
 	nodeWeightMul       = 1000000                // multiplier constant for node weight calculation
-	nodeWeightThreshold = 100                    // minimum weight for keeping a node in the the known (valuable) set
+	nodeWeightThreshold = 100                    // minimum weight for keeping a node in the known (valuable) set
 	minRedialWait       = 10                     // minimum redial wait time in seconds
 	preNegLimit         = 5                      // maximum number of simultaneous pre-negotiation queries
 	warnQueryFails      = 20                     // number of consecutive UDP query failures before we print a warning
@@ -89,7 +89,7 @@ type nodeHistoryEnc struct {
 	RedialWaitStart, RedialWaitEnd uint64
 }
 
-// queryFunc sends a pre-negotiation query and blocks until a response arrives or timeout occurs.
+// QueryFunc sends a pre-negotiation query and blocks until a response arrives or timeout occurs.
 // It returns 1 if the remote node has confirmed that connection is possible, 0 if not
 // possible and -1 if no response arrived (timeout).
 type QueryFunc func(*enode.Node) int
@@ -222,7 +222,6 @@ func (s *serverPoolIterator) Close() {
 func (s *ServerPool) AddMetrics(
 	suggestedTimeoutGauge, totalValueGauge, serverSelectableGauge, serverConnectedGauge metrics.Gauge,
 	sessionValueMeter, serverDialedMeter metrics.Meter) {
-
 	s.suggestedTimeoutGauge = suggestedTimeoutGauge
 	s.totalValueGauge = totalValueGauge
 	s.sessionValueMeter = sessionValueMeter
@@ -303,7 +302,7 @@ func (s *ServerPool) addPreNegFilter(input enode.Iterator, query QueryFunc) enod
 	})
 }
 
-// start starts the server pool. Note that NodeStateMachine should be started first.
+// Start starts the server pool. Note that NodeStateMachine should be started first.
 func (s *ServerPool) Start() {
 	s.ns.Start()
 	for _, iter := range s.mixSources {
@@ -337,7 +336,7 @@ func (s *ServerPool) Start() {
 	atomic.StoreUint32(&s.started, 1)
 }
 
-// stop stops the server pool
+// Stop stops the server pool
 func (s *ServerPool) Stop() {
 	if s.fillSet != nil {
 		s.fillSet.Close()

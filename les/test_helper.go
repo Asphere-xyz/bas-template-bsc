@@ -1,4 +1,4 @@
-// Copyright 2016 The go-ethereum Authors
+// Copyright 2019 The go-ethereum Authors
 // This file is part of the go-ethereum library.
 //
 // The go-ethereum library is free software: you can redistribute it and/or modify
@@ -25,37 +25,36 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
-	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/contracts/checkpointoracle/contract"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/forkid"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/txpool"
+	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/les/checkpointoracle"
 	"github.com/ethereum/go-ethereum/les/flowcontrol"
 	vfs "github.com/ethereum/go-ethereum/les/vflux/server"
 	"github.com/ethereum/go-ethereum/light"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 var (
 	bankKey, _ = crypto.GenerateKey()
 	bankAddr   = crypto.PubkeyToAddress(bankKey.PublicKey)
-	bankFunds  = big.NewInt(1000000000000000000)
+	bankFunds  = big.NewInt(1_000_000_000_000_000_000)
 
 	userKey1, _ = crypto.GenerateKey()
 	userKey2, _ = crypto.GenerateKey()
@@ -70,18 +69,11 @@ var (
 	testEventEmitterCode = common.Hex2Bytes("60606040523415600e57600080fd5b7f57050ab73f6b9ebdd9f76b8d4997793f48cf956e965ee070551b9ca0bb71584e60405160405180910390a160358060476000396000f3006060604052600080fd00a165627a7a723058203f727efcad8b5811f8cb1fc2620ce5e8c63570d697aef968172de296ea3994140029")
 
 	// Checkpoint oracle relative fields
-	oracleAddr   common.Address
 	signerKey, _ = crypto.GenerateKey()
 	signerAddr   = crypto.PubkeyToAddress(signerKey.PublicKey)
 )
 
 var (
-	// The block frequency for creating checkpoint(only used in test)
-	sectionSize = big.NewInt(128)
-
-	// The number of confirmations needed to generate a checkpoint(only used in test).
-	processConfirms = big.NewInt(1)
-
 	// The token bucket buffer limit for testing purpose.
 	testBufLimit = uint64(1000000)
 
@@ -115,15 +107,11 @@ func prepare(n int, backend *backends.SimulatedBackend) {
 		case 0:
 			// Builtin-block
 			//    number: 1
-			//    txs:    2
-
-			// deploy checkpoint contract
-			auth, _ := bind.NewKeyedTransactorWithChainID(bankKey, big.NewInt(1337))
-			oracleAddr, _, _, _ = contract.DeployCheckpointOracle(auth, backend, []common.Address{signerAddr}, sectionSize, processConfirms, big.NewInt(1))
+			//    txs:    1
 
 			// bankUser transfers some ether to user1
 			nonce, _ := backend.PendingNonceAt(ctx, bankAddr)
-			tx, _ := types.SignTx(types.NewTransaction(nonce, userAddr1, big.NewInt(10000), params.TxGas, nil, nil), signer, bankKey)
+			tx, _ := types.SignTx(types.NewTransaction(nonce, userAddr1, big.NewInt(10_000_000_000_000_000), params.TxGas, big.NewInt(params.InitialBaseFee), nil), signer, bankKey)
 			backend.SendTransaction(ctx, tx)
 		case 1:
 			// Builtin-block
@@ -134,20 +122,20 @@ func prepare(n int, backend *backends.SimulatedBackend) {
 			userNonce1, _ := backend.PendingNonceAt(ctx, userAddr1)
 
 			// bankUser transfers more ether to user1
-			tx1, _ := types.SignTx(types.NewTransaction(bankNonce, userAddr1, big.NewInt(1000), params.TxGas, nil, nil), signer, bankKey)
+			tx1, _ := types.SignTx(types.NewTransaction(bankNonce, userAddr1, big.NewInt(1_000_000_000_000_000), params.TxGas, big.NewInt(params.InitialBaseFee), nil), signer, bankKey)
 			backend.SendTransaction(ctx, tx1)
 
 			// user1 relays ether to user2
-			tx2, _ := types.SignTx(types.NewTransaction(userNonce1, userAddr2, big.NewInt(1000), params.TxGas, nil, nil), signer, userKey1)
+			tx2, _ := types.SignTx(types.NewTransaction(userNonce1, userAddr2, big.NewInt(1_000_000_000_000_000), params.TxGas, big.NewInt(params.InitialBaseFee), nil), signer, userKey1)
 			backend.SendTransaction(ctx, tx2)
 
 			// user1 deploys a test contract
-			tx3, _ := types.SignTx(types.NewContractCreation(userNonce1+1, big.NewInt(0), 200000, big.NewInt(0), testContractCode), signer, userKey1)
+			tx3, _ := types.SignTx(types.NewContractCreation(userNonce1+1, big.NewInt(0), 200000, big.NewInt(params.InitialBaseFee), testContractCode), signer, userKey1)
 			backend.SendTransaction(ctx, tx3)
 			testContractAddr = crypto.CreateAddress(userAddr1, userNonce1+1)
 
 			// user1 deploys a event contract
-			tx4, _ := types.SignTx(types.NewContractCreation(userNonce1+2, big.NewInt(0), 200000, big.NewInt(0), testEventEmitterCode), signer, userKey1)
+			tx4, _ := types.SignTx(types.NewContractCreation(userNonce1+2, big.NewInt(0), 200000, big.NewInt(params.InitialBaseFee), testEventEmitterCode), signer, userKey1)
 			backend.SendTransaction(ctx, tx4)
 		case 2:
 			// Builtin-block
@@ -156,12 +144,12 @@ func prepare(n int, backend *backends.SimulatedBackend) {
 
 			// bankUser transfer some ether to signer
 			bankNonce, _ := backend.PendingNonceAt(ctx, bankAddr)
-			tx1, _ := types.SignTx(types.NewTransaction(bankNonce, signerAddr, big.NewInt(1000000000), params.TxGas, nil, nil), signer, bankKey)
+			tx1, _ := types.SignTx(types.NewTransaction(bankNonce, signerAddr, big.NewInt(1000000000), params.TxGas, big.NewInt(params.InitialBaseFee), nil), signer, bankKey)
 			backend.SendTransaction(ctx, tx1)
 
 			// invoke test contract
 			data := common.Hex2Bytes("C16431B900000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000001")
-			tx2, _ := types.SignTx(types.NewTransaction(bankNonce+1, testContractAddr, big.NewInt(0), 100000, nil, data), signer, bankKey)
+			tx2, _ := types.SignTx(types.NewTransaction(bankNonce+1, testContractAddr, big.NewInt(0), 100000, big.NewInt(params.InitialBaseFee), data), signer, bankKey)
 			backend.SendTransaction(ctx, tx2)
 		case 3:
 			// Builtin-block
@@ -171,7 +159,7 @@ func prepare(n int, backend *backends.SimulatedBackend) {
 			// invoke test contract
 			bankNonce, _ := backend.PendingNonceAt(ctx, bankAddr)
 			data := common.Hex2Bytes("C16431B900000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000002")
-			tx, _ := types.SignTx(types.NewTransaction(bankNonce, testContractAddr, big.NewInt(0), 100000, nil, data), signer, bankKey)
+			tx, _ := types.SignTx(types.NewTransaction(bankNonce, testContractAddr, big.NewInt(0), 100000, big.NewInt(params.InitialBaseFee), data), signer, bankKey)
 			backend.SendTransaction(ctx, tx)
 		}
 		backend.Commit()
@@ -189,7 +177,7 @@ func testIndexers(db ethdb.Database, odr light.OdrBackend, config *light.Indexer
 	return indexers[:]
 }
 
-func newTestClientHandler(backend *backends.SimulatedBackend, odr *LesOdr, indexers []*core.ChainIndexer, db ethdb.Database, peers *serverPeerSet, ulcServers []string, ulcFraction int) (*clientHandler, func()) {
+func newTestClientHandler(backend *backends.SimulatedBackend, odr *LesOdr, indexers []*core.ChainIndexer, db ethdb.Database, peers *serverPeerSet) (*clientHandler, func()) {
 	var (
 		evmux  = new(event.TypeMux)
 		engine = consensus.Engine(nil)
@@ -197,29 +185,12 @@ func newTestClientHandler(backend *backends.SimulatedBackend, odr *LesOdr, index
 			Config:   params.AllEthashProtocolChanges,
 			Alloc:    core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
 			GasLimit: 100000000,
+			BaseFee:  big.NewInt(params.InitialBaseFee),
 		}
-		oracle *checkpointoracle.CheckpointOracle
 	)
-	genesis := gspec.MustCommit(db)
-	chain, _ := light.NewLightChain(odr, gspec.Config, engine, nil)
-	if indexers != nil {
-		checkpointConfig := &params.CheckpointOracleConfig{
-			Address:   crypto.CreateAddress(bankAddr, 0),
-			Signers:   []common.Address{signerAddr},
-			Threshold: 1,
-		}
-		getLocal := func(index uint64) params.TrustedCheckpoint {
-			chtIndexer := indexers[0]
-			sectionHead := chtIndexer.SectionHead(index)
-			return params.TrustedCheckpoint{
-				SectionIndex: index,
-				SectionHead:  sectionHead,
-				CHTRoot:      light.GetChtRoot(db, index, sectionHead),
-				BloomRoot:    light.GetBloomTrieRoot(db, index, sectionHead),
-			}
-		}
-		oracle = checkpointoracle.New(checkpointConfig, getLocal)
-	}
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, trie.HashDefaults))
+	chain, _ := light.NewLightChain(odr, gspec.Config, engine)
+
 	client := &LightEthereum{
 		lesCommons: lesCommons{
 			genesis:     genesis.Hash(),
@@ -227,7 +198,6 @@ func newTestClientHandler(backend *backends.SimulatedBackend, odr *LesOdr, index
 			chainConfig: params.AllEthashProtocolChanges,
 			iConfig:     light.TestClientIndexerConfig,
 			chainDb:     db,
-			oracle:      oracle,
 			chainReader: chain,
 			closeCh:     make(chan struct{}),
 		},
@@ -239,12 +209,8 @@ func newTestClientHandler(backend *backends.SimulatedBackend, odr *LesOdr, index
 		blockchain: chain,
 		eventMux:   evmux,
 	}
-	client.handler = newClientHandler(ulcServers, ulcFraction, nil, client)
+	client.handler = newClientHandler(client)
 
-	if client.oracle != nil {
-		client.oracle.Start(backend)
-	}
-	client.handler.start()
 	return client.handler, func() {
 		client.handler.stop()
 	}
@@ -256,36 +222,21 @@ func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Da
 			Config:   params.AllEthashProtocolChanges,
 			Alloc:    core.GenesisAlloc{bankAddr: {Balance: bankFunds}},
 			GasLimit: 100000000,
+			BaseFee:  big.NewInt(params.InitialBaseFee),
 		}
-		oracle *checkpointoracle.CheckpointOracle
 	)
-	genesis := gspec.MustCommit(db)
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, trie.HashDefaults))
 
 	// create a simulation backend and pre-commit several customized block to the database.
 	simulation := backends.NewSimulatedBackendWithDatabase(db, gspec.Alloc, 100000000)
 	prepare(blocks, simulation)
 
-	txpoolConfig := core.DefaultTxPoolConfig
+	txpoolConfig := legacypool.DefaultConfig
 	txpoolConfig.Journal = ""
-	txpool := core.NewTxPool(txpoolConfig, gspec.Config, simulation.Blockchain())
-	if indexers != nil {
-		checkpointConfig := &params.CheckpointOracleConfig{
-			Address:   crypto.CreateAddress(bankAddr, 0),
-			Signers:   []common.Address{signerAddr},
-			Threshold: 1,
-		}
-		getLocal := func(index uint64) params.TrustedCheckpoint {
-			chtIndexer := indexers[0]
-			sectionHead := chtIndexer.SectionHead(index)
-			return params.TrustedCheckpoint{
-				SectionIndex: index,
-				SectionHead:  sectionHead,
-				CHTRoot:      light.GetChtRoot(db, index, sectionHead),
-				BloomRoot:    light.GetBloomTrieRoot(db, index, sectionHead),
-			}
-		}
-		oracle = checkpointoracle.New(checkpointConfig, getLocal)
-	}
+
+	pool := legacypool.New(txpoolConfig, simulation.Blockchain())
+	txpool, _ := txpool.New(new(big.Int).SetUint64(txpoolConfig.PriceLimit), simulation.Blockchain(), []txpool.SubPool{pool})
+
 	server := &LesServer{
 		lesCommons: lesCommons{
 			genesis:     genesis.Hash(),
@@ -294,7 +245,6 @@ func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Da
 			iConfig:     light.TestServerIndexerConfig,
 			chainDb:     db,
 			chainReader: simulation.Blockchain(),
-			oracle:      oracle,
 			closeCh:     make(chan struct{}),
 		},
 		peers:        newClientPeerSet(),
@@ -311,9 +261,6 @@ func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Da
 	server.clientPool.Start()
 	server.clientPool.SetLimits(10000, 10000) // Assign enough capacity for clientpool
 	server.handler = newServerHandler(server, simulation.Blockchain(), db, txpool, func() bool { return true })
-	if server.oracle != nil {
-		server.oracle.Start(simulation)
-	}
 	server.servingQueue.setThreads(4)
 	server.handler.start()
 	closer := func() { server.Stop() }
@@ -352,13 +299,14 @@ func (p *testPeer) handshakeWithServer(t *testing.T, td *big.Int, head common.Ha
 	if err := p2p.ExpectMsg(p.app, StatusMsg, nil); err != nil {
 		t.Fatalf("status recv: %v", err)
 	}
-	if err := p2p.Send(p.app, StatusMsg, sendList); err != nil {
+	if err := p2p.Send(p.app, StatusMsg, &sendList); err != nil {
 		t.Fatalf("status send: %v", err)
 	}
 }
 
 // handshakeWithClient executes the handshake with the remote client peer.
-func (p *testPeer) handshakeWithClient(t *testing.T, td *big.Int, head common.Hash, headNum uint64, genesis common.Hash, forkID forkid.ID, costList RequestCostList, recentTxLookup uint64) {
+// (used by temporarily disabled tests)
+/*func (p *testPeer) handshakeWithClient(t *testing.T, td *big.Int, head common.Hash, headNum uint64, genesis common.Hash, forkID forkid.ID, costList RequestCostList, recentTxLookup uint64) {
 	// It only works for the simulated client peer
 	if p.speer == nil {
 		t.Fatal("handshake for server peer only")
@@ -385,10 +333,10 @@ func (p *testPeer) handshakeWithClient(t *testing.T, td *big.Int, head common.Ha
 	if err := p2p.ExpectMsg(p.app, StatusMsg, nil); err != nil {
 		t.Fatalf("status recv: %v", err)
 	}
-	if err := p2p.Send(p.app, StatusMsg, sendList); err != nil {
+	if err := p2p.Send(p.app, StatusMsg, &sendList); err != nil {
 		t.Fatalf("status send: %v", err)
 	}
-}
+}*/
 
 // close terminates the local side of the peer, notifying the remote protocol
 // manager of termination.
@@ -396,7 +344,7 @@ func (p *testPeer) close() {
 	p.app.Close()
 }
 
-func newTestPeerPair(name string, version int, server *serverHandler, client *clientHandler) (*testPeer, *testPeer, error) {
+func newTestPeerPair(name string, version int, server *serverHandler, client *clientHandler, noInitAnnounce bool) (*testPeer, *testPeer, error) {
 	// Create a message pipe to communicate through
 	app, net := p2p.MsgPipe()
 
@@ -421,19 +369,19 @@ func newTestPeerPair(name string, version int, server *serverHandler, client *cl
 		select {
 		case <-client.closeCh:
 			errc2 <- p2p.DiscQuitting
-		case errc2 <- client.handle(peer2):
+		case errc2 <- client.handle(peer2, noInitAnnounce):
 		}
 	}()
 	// Ensure the connection is established or exits when any error occurs
 	for {
 		select {
 		case err := <-errc1:
-			return nil, nil, fmt.Errorf("Failed to establish protocol connection %v", err)
+			return nil, nil, fmt.Errorf("failed to establish protocol connection %v", err)
 		case err := <-errc2:
-			return nil, nil, fmt.Errorf("Failed to establish protocol connection %v", err)
+			return nil, nil, fmt.Errorf("failed to establish protocol connection %v", err)
 		default:
 		}
-		if atomic.LoadUint32(&peer1.serving) == 1 && atomic.LoadUint32(&peer2.serving) == 1 {
+		if peer1.serving.Load() && peer2.serving.Load() {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -456,7 +404,8 @@ type testClient struct {
 }
 
 // newRawPeer creates a new server peer connects to the server and do the handshake.
-func (client *testClient) newRawPeer(t *testing.T, name string, version int, recentTxLookup uint64) (*testPeer, func(), <-chan error) {
+// (used by temporarily disabled tests)
+/*func (client *testClient) newRawPeer(t *testing.T, name string, version int, recentTxLookup uint64) (*testPeer, func(), <-chan error) {
 	// Create a message pipe to communicate through
 	app, net := p2p.MsgPipe()
 
@@ -471,7 +420,7 @@ func (client *testClient) newRawPeer(t *testing.T, name string, version int, rec
 		select {
 		case <-client.handler.closeCh:
 			errCh <- p2p.DiscQuitting
-		case errCh <- client.handler.handle(peer):
+		case errCh <- client.handler.handle(peer, false):
 		}
 	}()
 	tp := &testPeer{
@@ -484,7 +433,7 @@ func (client *testClient) newRawPeer(t *testing.T, name string, version int, rec
 		head    = client.handler.backend.blockchain.CurrentHeader()
 		td      = client.handler.backend.blockchain.GetTd(head.Hash(), head.Number.Uint64())
 	)
-	forkID := forkid.NewID(client.handler.backend.blockchain.Config(), genesis.Hash(), head.Number.Uint64())
+	forkID := forkid.NewID(client.handler.backend.blockchain.Config(), genesis.Hash(), head.Number.Uint64(), head.Time)
 	tp.handshakeWithClient(t, td, head.Hash(), head.Number.Uint64(), genesis.Hash(), forkID, testCostList(0), recentTxLookup) // disable flow control by default
 
 	// Ensure the connection is established or exits when any error occurs
@@ -494,7 +443,7 @@ func (client *testClient) newRawPeer(t *testing.T, name string, version int, rec
 			return nil, nil, nil
 		default:
 		}
-		if atomic.LoadUint32(&peer.serving) == 1 {
+		if peer.serving.Load() {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -504,7 +453,7 @@ func (client *testClient) newRawPeer(t *testing.T, name string, version int, rec
 		tp.close()
 	}
 	return tp, closePeer, errCh
-}
+}*/
 
 // testServer represents a server object for testing with necessary auxiliary fields.
 type testServer struct {
@@ -548,7 +497,7 @@ func (server *testServer) newRawPeer(t *testing.T, name string, version int) (*t
 		head    = server.handler.blockchain.CurrentHeader()
 		td      = server.handler.blockchain.GetTd(head.Hash(), head.Number.Uint64())
 	)
-	forkID := forkid.NewID(server.handler.blockchain.Config(), genesis.Hash(), head.Number.Uint64())
+	forkID := forkid.NewID(server.handler.blockchain.Config(), genesis.Hash(), head.Number.Uint64(), head.Time)
 	tp.handshakeWithServer(t, td, head.Hash(), head.Number.Uint64(), genesis.Hash(), forkID)
 
 	// Ensure the connection is established or exits when any error occurs
@@ -558,7 +507,7 @@ func (server *testServer) newRawPeer(t *testing.T, name string, version int) (*t
 			return nil, nil, nil
 		default:
 		}
-		if atomic.LoadUint32(&peer.serving) == 1 {
+		if peer.serving.Load() {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -572,14 +521,12 @@ func (server *testServer) newRawPeer(t *testing.T, name string, version int) (*t
 
 // testnetConfig wraps all the configurations for testing network.
 type testnetConfig struct {
-	blocks      int
-	protocol    int
-	indexFn     indexerCallback
-	ulcServers  []string
-	ulcFraction int
-	simClock    bool
-	connect     bool
-	nopruning   bool
+	blocks    int
+	protocol  int
+	indexFn   indexerCallback
+	simClock  bool
+	connect   bool
+	nopruning bool
 }
 
 func newClientServerEnv(t *testing.T, config testnetConfig) (*testServer, *testClient, func()) {
@@ -604,7 +551,7 @@ func newClientServerEnv(t *testing.T, config testnetConfig) (*testServer, *testC
 	odr.SetIndexers(ccIndexer, cbIndexer, cbtIndexer)
 
 	server, b, serverClose := newTestServerHandler(config.blocks, sindexers, sdb, clock)
-	client, clientClose := newTestClientHandler(b, odr, cIndexers, cdb, speers, config.ulcServers, config.ulcFraction)
+	client, clientClose := newTestClientHandler(b, odr, cIndexers, cdb, speers)
 
 	scIndexer.Start(server.blockchain)
 	sbIndexer.Start(server.blockchain)
@@ -620,8 +567,7 @@ func newClientServerEnv(t *testing.T, config testnetConfig) (*testServer, *testC
 	)
 	if config.connect {
 		done := make(chan struct{})
-		client.syncEnd = func(_ *types.Header) { close(done) }
-		cpeer, speer, err = newTestPeerPair("peer", config.protocol, server, client)
+		cpeer, speer, err = newTestPeerPair("peer", config.protocol, server, client, false)
 		if err != nil {
 			t.Fatalf("Failed to connect testing peers %v", err)
 		}

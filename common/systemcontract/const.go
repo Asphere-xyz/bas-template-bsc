@@ -22,19 +22,25 @@ const (
 
 // BAS contacts
 const (
-	StakingPoolContract    = "0x0000000000000000000000000000000000007001"
-	GovernanceContract     = "0x0000000000000000000000000000000000007002"
-	ChainConfigContract    = "0x0000000000000000000000000000000000007003"
-	RuntimeUpgradeContract = "0x0000000000000000000000000000000000007004"
-	DeployerProxyContract  = "0x0000000000000000000000000000000000007005"
+	StakingPoolContract           = "0x0000000000000000000000000000000000007001"
+	GovernanceContract            = "0x0000000000000000000000000000000000007002"
+	ChainConfigContract           = "0x0000000000000000000000000000000000007003"
+	RuntimeUpgradeContract        = "0x0000000000000000000000000000000000007004"
+	DeployerProxyContract         = "0x0000000000000000000000000000000000007005"
+	EvmHookRuntimeUpgradeContract = "0x0000000000000000000000000000000000007f01"
+	EvmHookDeployerProxyContract  = "0x0000000000000000000000000000000000007f02"
+	IntermediarySystemContract    = "0xfffffffffffffffffffffffffffffffffffffffe"
 )
 
 var (
-	StakingPoolContractAddress    = common.HexToAddress(StakingPoolContract)
-	GovernanceContractAddress     = common.HexToAddress(GovernanceContract)
-	ChainConfigContractAddress    = common.HexToAddress(ChainConfigContract)
-	RuntimeUpgradeContractAddress = common.HexToAddress(RuntimeUpgradeContract)
-	DeployerProxyContractAddress  = common.HexToAddress(DeployerProxyContract)
+	StakingPoolContractAddress           = common.HexToAddress(StakingPoolContract)
+	GovernanceContractAddress            = common.HexToAddress(GovernanceContract)
+	ChainConfigContractAddress           = common.HexToAddress(ChainConfigContract)
+	RuntimeUpgradeContractAddress        = common.HexToAddress(RuntimeUpgradeContract)
+	DeployerProxyContractAddress         = common.HexToAddress(DeployerProxyContract)
+	EvmHookRuntimeUpgradeContractAddress = common.HexToAddress(EvmHookRuntimeUpgradeContract)
+	EvmHookDeployerProxyContractAddress  = common.HexToAddress(EvmHookDeployerProxyContract)
+	IntermediarySystemContractAddress    = common.HexToAddress(IntermediarySystemContract)
 )
 
 var systemContracts = map[common.Address]bool{
@@ -50,16 +56,16 @@ var systemContracts = map[common.Address]bool{
 	common.HexToAddress(CrossChainContract):         false,
 	common.HexToAddress(TokenManagerContract):       false,
 	// BAS smart contracts
-	common.HexToAddress(StakingPoolContract):    true,
-	common.HexToAddress(GovernanceContract):     true,
-	common.HexToAddress(ChainConfigContract):    true,
-	common.HexToAddress(RuntimeUpgradeContract): true,
-	common.HexToAddress(DeployerProxyContract):  true,
+	common.HexToAddress(StakingPoolContract):           true,
+	common.HexToAddress(GovernanceContract):            true,
+	common.HexToAddress(ChainConfigContract):           true,
+	common.HexToAddress(RuntimeUpgradeContract):        true,
+	common.HexToAddress(DeployerProxyContract):         true,
+	common.HexToAddress(EvmHookRuntimeUpgradeContract): true,
+	common.HexToAddress(EvmHookDeployerProxyContract):  true,
+	common.HexToAddress(IntermediarySystemContract):    true,
 }
 
 func IsSystemContract(address common.Address) bool {
 	return systemContracts[address]
 }
-
-var EvmHookRuntimeUpgradeAddress = common.HexToAddress("0x0000000000000000000000000000000000007f01")
-var EvmHookDeployerProxyAddress = common.HexToAddress("0x0000000000000000000000000000000000007f02")

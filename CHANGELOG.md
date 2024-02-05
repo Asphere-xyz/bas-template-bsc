@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.1.0
+
+FEATURES
+* Upgrade codebase to bsc v1.3.6
+
 ## v1.0.3
 
 BUGFIX

@@ -77,8 +77,8 @@ type priorityPool struct {
 	// temporary state if tempState is not empty
 	tempState              []*ppNodeInfo
 	activeCount, activeCap uint64
-	activeQueue            *prque.LazyQueue
-	inactiveQueue          *prque.Prque
+	activeQueue            *prque.LazyQueue[int64, *ppNodeInfo]
+	inactiveQueue          *prque.Prque[int64, *ppNodeInfo]
 }
 
 // ppNodeInfo is the internal node descriptor of priorityPool
@@ -104,7 +104,7 @@ func newPriorityPool(ns *nodestate.NodeStateMachine, setup *serverSetup, clock m
 		setup:           setup,
 		ns:              ns,
 		clock:           clock,
-		inactiveQueue:   prque.New(inactiveSetIndex),
+		inactiveQueue:   prque.New[int64, *ppNodeInfo](inactiveSetIndex),
 		minCap:          minCap,
 		activeBias:      activeBias,
 		capacityStepDiv: capacityStepDiv,
@@ -128,7 +128,7 @@ func newPriorityPool(ns *nodestate.NodeStateMachine, setup *serverSetup, clock m
 		} else {
 			ns.SetStateSub(node, nodestate.Flags{}, pp.setup.activeFlag.Or(pp.setup.inactiveFlag), 0)
 			if n, _ := pp.ns.GetField(node, pp.setup.queueField).(*ppNodeInfo); n != nil {
-				pp.disconnectedNode(n)
+				pp.disconnectNode(n)
 			}
 			ns.SetFieldSub(node, pp.setup.capacityField, nil)
 			ns.SetFieldSub(node, pp.setup.queueField, nil)
@@ -137,10 +137,10 @@ func newPriorityPool(ns *nodestate.NodeStateMachine, setup *serverSetup, clock m
 	ns.SubscribeState(pp.setup.activeFlag.Or(pp.setup.inactiveFlag), func(node *enode.Node, oldState, newState nodestate.Flags) {
 		if c, _ := pp.ns.GetField(node, pp.setup.queueField).(*ppNodeInfo); c != nil {
 			if oldState.IsEmpty() {
-				pp.connectedNode(c)
+				pp.connectNode(c)
 			}
 			if newState.IsEmpty() {
-				pp.disconnectedNode(c)
+				pp.disconnectNode(c)
 			}
 		}
 	})
@@ -183,8 +183,7 @@ func (pp *priorityPool) requestCapacity(node *enode.Node, minTarget, maxTarget u
 	}
 	pp.setTempCapacity(c, maxTarget)
 	c.minTarget = minTarget
-	pp.activeQueue.Remove(c.activeIndex)
-	pp.inactiveQueue.Remove(c.inactiveIndex)
+	pp.removeFromQueues(c)
 	pp.activeQueue.Push(c)
 	pp.enforceLimits()
 	updates := pp.finalizeChanges(c.tempCapacity >= minTarget && c.tempCapacity <= maxTarget && c.tempCapacity != c.capacity)
@@ -233,6 +232,14 @@ func (pp *priorityPool) Active() (uint64, uint64) {
 	return pp.activeCount, pp.activeCap
 }
 
+// Inactive returns the number of currently inactive nodes
+func (pp *priorityPool) Inactive() int {
+	pp.lock.Lock()
+	defer pp.lock.Unlock()
+
+	return pp.inactiveQueue.Size()
+}
+
 // Limits returns the maximum allowed number and total capacity of active nodes
 func (pp *priorityPool) Limits() (uint64, uint64) {
 	pp.lock.Lock()
@@ -242,13 +249,13 @@ func (pp *priorityPool) Limits() (uint64, uint64) {
 }
 
 // inactiveSetIndex callback updates ppNodeInfo item index in inactiveQueue
-func inactiveSetIndex(a interface{}, index int) {
-	a.(*ppNodeInfo).inactiveIndex = index
+func inactiveSetIndex(a *ppNodeInfo, index int) {
+	a.inactiveIndex = index
 }
 
 // activeSetIndex callback updates ppNodeInfo item index in activeQueue
-func activeSetIndex(a interface{}, index int) {
-	a.(*ppNodeInfo).activeIndex = index
+func activeSetIndex(a *ppNodeInfo, index int) {
+	a.activeIndex = index
 }
 
 // invertPriority inverts a priority value. The active queue uses inverted priorities
@@ -261,8 +268,7 @@ func invertPriority(p int64) int64 {
 }
 
 // activePriority callback returns actual priority of ppNodeInfo item in activeQueue
-func activePriority(a interface{}) int64 {
-	c := a.(*ppNodeInfo)
+func activePriority(c *ppNodeInfo) int64 {
 	if c.bias == 0 {
 		return invertPriority(c.nodePriority.priority(c.tempCapacity))
 	} else {
@@ -271,8 +277,7 @@ func activePriority(a interface{}) int64 {
 }
 
 // activeMaxPriority callback returns estimated maximum priority of ppNodeInfo item in activeQueue
-func (pp *priorityPool) activeMaxPriority(a interface{}, until mclock.AbsTime) int64 {
-	c := a.(*ppNodeInfo)
+func (pp *priorityPool) activeMaxPriority(c *ppNodeInfo, until mclock.AbsTime) int64 {
 	future := time.Duration(until - pp.clock.Now())
 	if future < 0 {
 		future = 0
@@ -285,9 +290,19 @@ func (pp *priorityPool) inactivePriority(p *ppNodeInfo) int64 {
 	return p.nodePriority.priority(pp.minCap)
 }
 
-// connectedNode is called when a new node has been added to the pool (inactiveFlag set)
+// removeFromQueues removes the node from the active/inactive queues
+func (pp *priorityPool) removeFromQueues(c *ppNodeInfo) {
+	if c.activeIndex >= 0 {
+		pp.activeQueue.Remove(c.activeIndex)
+	}
+	if c.inactiveIndex >= 0 {
+		pp.inactiveQueue.Remove(c.inactiveIndex)
+	}
+}
+
+// connectNode is called when a new node has been added to the pool (inactiveFlag set)
 // Note: this function should run inside a NodeStateMachine operation
-func (pp *priorityPool) connectedNode(c *ppNodeInfo) {
+func (pp *priorityPool) connectNode(c *ppNodeInfo) {
 	pp.lock.Lock()
 	pp.activeQueue.Refresh()
 	if c.connected {
@@ -301,10 +316,10 @@ func (pp *priorityPool) connectedNode(c *ppNodeInfo) {
 	pp.updateFlags(updates)
 }
 
-// disconnectedNode is called when a node has been removed from the pool (both inactiveFlag
+// disconnectNode is called when a node has been removed from the pool (both inactiveFlag
 // and activeFlag reset)
 // Note: this function should run inside a NodeStateMachine operation
-func (pp *priorityPool) disconnectedNode(c *ppNodeInfo) {
+func (pp *priorityPool) disconnectNode(c *ppNodeInfo) {
 	pp.lock.Lock()
 	pp.activeQueue.Refresh()
 	if !c.connected {
@@ -312,8 +327,7 @@ func (pp *priorityPool) disconnectedNode(c *ppNodeInfo) {
 		return
 	}
 	c.connected = false
-	pp.activeQueue.Remove(c.activeIndex)
-	pp.inactiveQueue.Remove(c.inactiveIndex)
+	pp.removeFromQueues(c)
 
 	var updates []capUpdate
 	if c.capacity != 0 {
@@ -403,11 +417,11 @@ func (pp *priorityPool) enforceLimits() (*ppNodeInfo, int64) {
 		return nil, math.MinInt64
 	}
 	var (
-		c                 *ppNodeInfo
+		lastNode          *ppNodeInfo
 		maxActivePriority int64
 	)
-	pp.activeQueue.MultiPop(func(data interface{}, priority int64) bool {
-		c = data.(*ppNodeInfo)
+	pp.activeQueue.MultiPop(func(c *ppNodeInfo, priority int64) bool {
+		lastNode = c
 		pp.setTempState(c)
 		maxActivePriority = priority
 		if c.tempCapacity == c.minTarget || pp.activeCount > pp.maxCount {
@@ -425,7 +439,7 @@ func (pp *priorityPool) enforceLimits() (*ppNodeInfo, int64) {
 		}
 		return pp.activeCap > pp.maxCap || pp.activeCount > pp.maxCount
 	})
-	return c, invertPriority(maxActivePriority)
+	return lastNode, invertPriority(maxActivePriority)
 }
 
 // finalizeChanges either commits or reverts temporary changes. The necessary capacity
@@ -434,8 +448,7 @@ func (pp *priorityPool) enforceLimits() (*ppNodeInfo, int64) {
 func (pp *priorityPool) finalizeChanges(commit bool) (updates []capUpdate) {
 	for _, c := range pp.tempState {
 		// always remove and push back in order to update biased priority
-		pp.activeQueue.Remove(c.activeIndex)
-		pp.inactiveQueue.Remove(c.inactiveIndex)
+		pp.removeFromQueues(c)
 		oldCapacity := c.capacity
 		if commit {
 			c.capacity = c.tempCapacity
@@ -488,7 +501,7 @@ func (pp *priorityPool) updateFlags(updates []capUpdate) {
 // tryActivate tries to activate inactive nodes if possible
 func (pp *priorityPool) tryActivate(commit bool) []capUpdate {
 	for pp.inactiveQueue.Size() > 0 {
-		c := pp.inactiveQueue.PopItem().(*ppNodeInfo)
+		c := pp.inactiveQueue.PopItem()
 		pp.setTempState(c)
 		pp.setTempBias(c, pp.activeBias)
 		pp.setTempCapacity(c, pp.minCap)
@@ -516,8 +529,7 @@ func (pp *priorityPool) updatePriority(node *enode.Node) {
 		pp.lock.Unlock()
 		return
 	}
-	pp.activeQueue.Remove(c.activeIndex)
-	pp.inactiveQueue.Remove(c.inactiveIndex)
+	pp.removeFromQueues(c)
 	if c.capacity != 0 {
 		pp.activeQueue.Push(c)
 	} else {

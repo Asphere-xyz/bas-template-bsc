@@ -46,8 +46,8 @@ func TestTransaction(t *testing.T) {
 	// internally to calculate the cost
 	txt.skipLoad("^ttValue/TransactionWithHighValueOverflow.json")
 	txt.walk(t, transactionTestDir, func(t *testing.T, name string, test *TransactionTest) {
-		cfg := params.MainnetChainConfig
-		if err := txt.checkFailure(t, name, test.Run(cfg)); err != nil {
+		cfg := params.AllDevChainProtocolChanges
+		if err := txt.checkFailure(t, test.Run(cfg)); err != nil {
 			t.Error(err)
 		}
 	})

@@ -53,7 +53,7 @@ func TestHashRanges(t *testing.T) {
 			head:   common.HexToHash("0x2000000000000000000000000000000000000000000000000000000000000000"),
 			chunks: 2,
 			starts: []common.Hash{
-				common.Hash{},
+				{},
 				common.HexToHash("0x9000000000000000000000000000000000000000000000000000000000000000"),
 			},
 			ends: []common.Hash{
@@ -95,7 +95,7 @@ func TestHashRanges(t *testing.T) {
 		// meaningful space size for manual verification.
 		//   - The head being 0xff...f0, we have 14 hashes left in the space
 		//   - Chunking up 14 into 3 pieces is 4.(6), but we need the ceil of 5 to avoid a micro-last-chunk
-		//   - Since the range is not divisible, the last interval will be shrter, capped at 0xff...f
+		//   - Since the range is not divisible, the last interval will be shorter, capped at 0xff...f
 		//   - The chunk ranges thus needs to be [..0, ..5], [..6, ..b], [..c, ..f]
 		{
 			head:   common.HexToHash("0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0"),
